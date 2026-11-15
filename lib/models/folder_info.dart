@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:gallery_app/models/file_info.dart';
 
 class FolderInfo {
@@ -14,6 +15,16 @@ class FolderInfo {
   });
 
   int get fileCount => files.length;
+
+  DateTime get lastModified {
+    try {
+      final dir = Directory(path);
+      if (dir.existsSync()) {
+        return dir.statSync().modified;
+      }
+    } catch (_) {}
+    return DateTime.fromMillisecondsSinceEpoch(0);
+  }
 
   String? get thumbnailPath {
     if (customThumbnailPath != null) {

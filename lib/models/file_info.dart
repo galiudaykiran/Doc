@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 
 class FileInfo {
@@ -10,6 +11,16 @@ class FileInfo {
     required this.path,
     required this.type,
   });
+
+  int get size {
+    try {
+      final file = File(path);
+      if (file.existsSync()) {
+        return file.lengthSync();
+      }
+    } catch (_) {}
+    return 0;
+  }
 
   IconData get icon {
     switch (type) {

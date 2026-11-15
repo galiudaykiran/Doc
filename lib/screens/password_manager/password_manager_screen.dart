@@ -183,12 +183,13 @@ class _PasswordManagerScreenState extends State<PasswordManagerScreen> {
         return StatefulBuilder(
           builder: (ctx, setModalState) {
             final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
+            final availableHeight = MediaQuery.sizeOf(ctx).height - bottomInset;
             return Padding(
               padding: EdgeInsets.only(bottom: bottomInset),
               child: SafeArea(
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
-                    maxHeight: MediaQuery.sizeOf(ctx).height * 0.85,
+                    maxHeight: availableHeight * 0.9,
                   ),
                   child: Container(
                     padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),

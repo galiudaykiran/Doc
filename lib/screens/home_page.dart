@@ -42,6 +42,11 @@ import 'package:gallery_app/utils/responsive_layout.dart';
 import 'package:gallery_app/services/zip_service.dart';
 import 'package:file_picker/file_picker.dart' as fp;
 import 'package:gallery_app/theme/app_theme.dart';
+import 'package:gallery_app/screens/favorites_screen.dart';
+import 'package:gallery_app/models/user_profile.dart';
+import 'package:gallery_app/services/profile_service.dart';
+import 'package:gallery_app/screens/profile_screen.dart';
+import 'package:gallery_app/widgets/voice_search_sheet.dart';
 
 class HomePage extends StatefulWidget {
   final Function(ThemeMode) setThemeMode;
@@ -71,6 +76,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   final Debouncer _searchDebouncer = Debouncer(
     delay: const Duration(milliseconds: 300),
   );
+  UserProfile? _profile;
+  String _currentSort = 'name_asc';
+  String _currentFilter = 'all';
   // Storage variables
   double _storageUsedMb = 0.0;
   double _maxStorageMb = 1024.0; // Default 1 GB
@@ -143,7 +151,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
+    final profile = await ProfileService.getProfile();
     setState(() {
+      _profile = profile;
       _favoritePaths = prefs.getStringList('favorite_folders') ?? [];
       _recentPaths = prefs.getStringList('recent_folders') ?? [];
       _pinnedPaths = prefs.getStringList('pinned_folders') ?? [];
@@ -151,6 +161,25 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       _isListView = prefs.getBool('is_list_view') ?? false;
       _maxStorageMb = prefs.getDouble('max_storage_mb') ?? 1024.0;
     });
+  }
+
+  Future<void> _loadProfile() async {
+    final profile = await ProfileService.getProfile();
+    if (mounted) setState(() => _profile = profile);
+  }
+
+  String get _avatarInitial {
+    if (_profile != null && _profile!.username.trim().isNotEmpty) {
+      return _profile!.username.trim()[0].toUpperCase();
+    }
+    return 'U';
+  }
+
+  String get _userFirstName {
+    if (_profile != null && _profile!.username.trim().isNotEmpty) {
+      return _profile!.username.trim().split(' ').first;
+    }
+    return '';
   }
 
 
@@ -221,7 +250,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (!enabled || !hasPin) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Set up Folder Lock in Settings first.')),
+        const SnackBar(
+          content: Text('Set up Folder Lock in Settings first.'),
+          duration: Duration(seconds: 3),
+        ),
       );
       return;
     }
@@ -241,77 +273,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Future<void> _showFavorites() async {
-    final prefs = await SharedPreferences.getInstance();
-    final favoriteFilePaths = prefs.getStringList('favorite_files') ?? [];
-
-    final favoriteFolders = _folders
-        .where((f) => _favoritePaths.contains(f.path))
-        .toList();
-
-    // Aggregate all files to find favorite files
-    final List<FileInfo> allFiles = [];
-    for (var folder in _folders) {
-      allFiles.addAll(folder.files);
-    }
-    final favoriteFiles = allFiles
-        .where((f) => favoriteFilePaths.contains(f.path))
-        .toList();
-
-    if (!mounted) return;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        return Container(
-          margin: const EdgeInsets.all(16),
-          padding: const EdgeInsets.only(bottom: 16),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF2A2A2A) : Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-               BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 5))
-            ]
-          ),
-          child: DefaultTabController(
-            length: 2,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 24),
-                Text('Favorites', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18, color: Theme.of(context).textTheme.bodyLarge?.color)),
-                const SizedBox(height: 8),
-                TabBar(
-                  labelColor: Theme.of(context).primaryColor,
-                  unselectedLabelColor: Colors.grey,
-                  indicatorColor: Theme.of(context).primaryColor,
-                  indicatorSize: TabBarIndicatorSize.label,
-                  labelStyle: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14),
-                  unselectedLabelStyle: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 14),
-                  tabs: const [
-                    Tab(text: "Folders"),
-                    Tab(text: "Files"),
-                  ],
-                ),
-                Flexible(
-                  child: Container(
-                    constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.5),
-                    child: TabBarView(
-                      children: [
-                        _buildFolderList(favoriteFolders, ScrollController()),
-                        _buildFileList(favoriteFiles, ScrollController()),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+    HapticFeedback.lightImpact();
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => FavoritesScreen(allFolders: _folders),
+      ),
     );
+    _loadPreferences();
+    _initFolders();
   }
 
   Widget _buildFolderList(
@@ -747,13 +717,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (ctx) => SafeArea(
+        top: false,
         child: ConstrainedBox(
           constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(ctx).height * 0.85,
+            maxHeight: MediaQuery.sizeOf(ctx).height * 0.78,
           ),
           child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+            physics: const ClampingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1273,6 +1244,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Folder moved to trash'),
+          duration: const Duration(seconds: 3),
           action: SnackBarAction(
             label: 'Undo',
             onPressed: () async {
@@ -1307,17 +1279,191 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         return matchesFolder || matchesFiles;
       }).toList();
     }
-    
-    // Sort so pinned folders are at the top
+
+    // Apply Filter
+    if (_currentFilter == 'favorites') {
+      result = result.where((f) => _favoritePaths.contains(f.path)).toList();
+    } else if (_currentFilter == 'pinned') {
+      result = result.where((f) => _pinnedPaths.contains(f.path)).toList();
+    } else if (_currentFilter == 'non_empty') {
+      result = result.where((f) => f.fileCount > 0).toList();
+    }
+
+    // Sort folders
     result.sort((a, b) {
       bool aPinned = _pinnedPaths.contains(a.path);
       bool bPinned = _pinnedPaths.contains(b.path);
       if (aPinned && !bPinned) return -1;
       if (!aPinned && bPinned) return 1;
-      return 0; // Maintain relative order
+
+      switch (_currentSort) {
+        case 'name_asc':
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        case 'name_desc':
+          return b.name.toLowerCase().compareTo(a.name.toLowerCase());
+        case 'date_desc':
+          return b.lastModified.compareTo(a.lastModified);
+        case 'count_desc':
+          return b.fileCount.compareTo(a.fileCount);
+        default:
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      }
     });
-    
+
     return result;
+  }
+
+  String _getSortLabel() {
+    switch (_currentSort) {
+      case 'name_asc':
+        return 'Name (A-Z)';
+      case 'name_desc':
+        return 'Name (Z-A)';
+      case 'date_desc':
+        return 'Newest';
+      case 'count_desc':
+        return 'Item Count';
+      default:
+        return 'Name';
+    }
+  }
+
+  void _showSortAndFilterSheet(BuildContext context) {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          return Container(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            decoration: BoxDecoration(
+              color: AppTheme.surface(ctx),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              border: Border(top: BorderSide(color: AppTheme.surfaceBorder(ctx))),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppTheme.textMuted(ctx).withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Sort & Filter Collections',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color: AppTheme.textPrimary(ctx),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'SORT BY',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                    letterSpacing: 1.0,
+                    color: AppTheme.primary(ctx),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _buildSortOption(ctx, setSheetState, 'Name (A to Z)', 'name_asc', Icons.sort_by_alpha_rounded),
+                _buildSortOption(ctx, setSheetState, 'Name (Z to A)', 'name_desc', Icons.sort_by_alpha_rounded),
+                _buildSortOption(ctx, setSheetState, 'Date Modified (Newest)', 'date_desc', Icons.schedule_rounded),
+                _buildSortOption(ctx, setSheetState, 'Item Count (Highest)', 'count_desc', Icons.format_list_numbered_rounded),
+                const Divider(height: 24),
+                Text(
+                  'FILTER BY',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                    letterSpacing: 1.0,
+                    color: AppTheme.primary(ctx),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _buildFilterChip(ctx, setSheetState, 'All Collections', 'all'),
+                    _buildFilterChip(ctx, setSheetState, 'Favorites Only', 'favorites'),
+                    _buildFilterChip(ctx, setSheetState, 'Pinned Only', 'pinned'),
+                    _buildFilterChip(ctx, setSheetState, 'Has Items', 'non_empty'),
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSortOption(BuildContext ctx, StateSetter setSheetState, String label, String value, IconData icon) {
+    final isSelected = _currentSort == value;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setSheetState(() => _currentSort = value);
+        setState(() => _currentSort = value);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: isSelected ? AppTheme.primary(ctx) : AppTheme.textSecondary(ctx)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  color: isSelected ? AppTheme.primary(ctx) : AppTheme.textPrimary(ctx),
+                ),
+              ),
+            ),
+            if (isSelected)
+              Icon(Icons.check_circle_rounded, color: AppTheme.primary(ctx), size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(BuildContext ctx, StateSetter setSheetState, String label, String value) {
+    final isSelected = _currentFilter == value;
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (selected) {
+        if (selected) {
+          HapticFeedback.selectionClick();
+          setSheetState(() => _currentFilter = value);
+          setState(() => _currentFilter = value);
+        }
+      },
+      selectedColor: AppTheme.primaryContainer(ctx),
+      backgroundColor: AppTheme.tonal(ctx),
+      labelStyle: GoogleFonts.plusJakartaSans(
+        fontSize: 12,
+        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+        color: isSelected ? AppTheme.onPrimaryContainer(ctx) : AppTheme.textSecondary(ctx),
+      ),
+    );
   }
 
   String _getGreeting() {
@@ -1331,8 +1477,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      extendBodyBehindAppBar: true,
-      extendBody: true,
+      extendBodyBehindAppBar: false,
+      extendBody: false,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
@@ -1352,67 +1498,69 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               ),
             ),
           ),
-          RefreshIndicator(
-            onRefresh: _initFolders,
-            color: Theme.of(context).colorScheme.primary,
-            backgroundColor: Theme.of(context).cardColor,
-            child: CustomScrollView(
-              controller: _scrollController,
-              physics: const BouncingScrollPhysics(),
-              slivers: [
+          SafeArea(
+            bottom: false,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                 _buildHeader(context),
                 _buildSearchBar(context),
                 if (_searchQuery.isEmpty) _buildQuickActions(context),
                 if (_searchQuery.isEmpty)
                   _buildSectionTitle(context, 'Your Collections'),
-                if (_isLoading)
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    sliver: SliverToBoxAdapter(child: _buildShimmerEffect()),
-                  )
-                else if (_filteredFolders.isEmpty)
-                  _buildEmptyState(context)
-                else if (_isListView)
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate((context, index) {
-                        final folder = _filteredFolders[index];
-                        return _buildFolderListCard(folder);
-                      }, childCount: _filteredFolders.length),
-                    ),
-                  )
-                else
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    sliver: SliverGrid(
-                      gridDelegate:
-                          SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: ResponsiveLayout.getAdaptiveGridColumns(
-                              context,
-                              minItemWidth: _isGridThreeColumns ? 120 : 160,
-                              minColumns: 2,
-                            ),
-                            crossAxisSpacing: 12.0,
-                            mainAxisSpacing: 16.0,
-                            childAspectRatio: ResponsiveLayout.getCardAspectRatio(
-                              context,
-                              isCompactGrid: _isGridThreeColumns,
-                            ),
-                          ),
-                      delegate: SliverChildBuilderDelegate((context, index) {
-                        final folder = _filteredFolders[index];
-                        return _buildFolderCard(folder);
-                      }, childCount: _filteredFolders.length),
-                    ),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _initFolders,
+                    color: Theme.of(context).colorScheme.primary,
+                    backgroundColor: Theme.of(context).cardColor,
+                    child: _isLoading
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: _buildShimmerEffect(),
+                          )
+                        : _filteredFolders.isEmpty
+                            ? _buildEmptyState(context)
+                            : _isListView
+                                ? ListView.builder(
+                                    controller: _scrollController,
+                                    physics: const AlwaysScrollableScrollPhysics(
+                                      parent: BouncingScrollPhysics(),
+                                    ),
+                                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+                                    itemCount: _filteredFolders.length,
+                                    itemBuilder: (context, index) {
+                                      final folder = _filteredFolders[index];
+                                      return _buildFolderListCard(folder);
+                                    },
+                                  )
+                                : GridView.builder(
+                                    controller: _scrollController,
+                                    physics: const AlwaysScrollableScrollPhysics(
+                                      parent: BouncingScrollPhysics(),
+                                    ),
+                                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+                                    gridDelegate:
+                                        SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: ResponsiveLayout.getAdaptiveGridColumns(
+                                        context,
+                                        minItemWidth: _isGridThreeColumns ? 120 : 160,
+                                        minColumns: 2,
+                                      ),
+                                      crossAxisSpacing: 12.0,
+                                      mainAxisSpacing: 16.0,
+                                      childAspectRatio: ResponsiveLayout.getCardAspectRatio(
+                                        context,
+                                        isCompactGrid: _isGridThreeColumns,
+                                      ),
+                                    ),
+                                    itemCount: _filteredFolders.length,
+                                    itemBuilder: (context, index) {
+                                      final folder = _filteredFolders[index];
+                                      return _buildFolderCard(folder);
+                                    },
+                                  ),
                   ),
-                const SliverPadding(padding: EdgeInsets.only(bottom: 24)),
+                ),
               ],
             ),
           ),
@@ -1948,289 +2096,288 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _buildHeader(BuildContext context) {
-    return SliverToBoxAdapter(
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top Brand & Profile Bar
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Top Brand & Profile Bar
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryContainer(context),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          Icons.folder_special_rounded,
-                          color: AppTheme.primary(context),
-                          size: 22,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Document Hub',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 22,
-                          color: AppTheme.textPrimary(context),
-                          letterSpacing: -0.3,
-                        ),
-                      ),
-                    ],
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryContainer(context),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.folder_special_rounded,
+                      color: AppTheme.primary(context),
+                      size: 22,
+                    ),
                   ),
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: Icon(
-                          Icons.settings_outlined,
-                          color: AppTheme.textSecondary(context),
-                          size: 22,
-                        ),
-                        style: IconButton.styleFrom(
-                          backgroundColor: AppTheme.tonal(context),
-                          shape: const CircleBorder(),
-                          padding: const EdgeInsets.all(8),
-                        ),
-                        onPressed: () {
-                          HapticFeedback.lightImpact();
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => SettingsScreen(
-                                setThemeMode: widget.setThemeMode,
-                              ),
-                            ),
-                          ).then((_) {
-                            _loadPreferences();
-                            _loadFolderLockState();
-                          });
-                        },
-                        tooltip: 'Settings',
-                      ),
-                      const SizedBox(width: 10),
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryContainer(context),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Text(
-                            'U',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: AppTheme.onPrimaryContainer(context),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                  const SizedBox(width: 12),
+                  Text(
+                    'Document Hub',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 22,
+                      color: AppTheme.textPrimary(context),
+                      letterSpacing: -0.3,
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 18),
-              // Greeting Block
-              Text(
-                '${_getGreeting()}, 👋',
-                style: GoogleFonts.plusJakartaSans(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 26,
-                  color: AppTheme.textPrimary(context),
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Let\'s organize your documents efficiently.',
-                style: GoogleFonts.plusJakartaSans(
-                  fontWeight: FontWeight.w400,
-                  fontSize: 13,
-                  color: AppTheme.textMuted(context),
-                ),
+              Row(
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.settings_outlined,
+                      color: AppTheme.textSecondary(context),
+                      size: 22,
+                    ),
+                    style: IconButton.styleFrom(
+                      backgroundColor: AppTheme.tonal(context),
+                      shape: const CircleBorder(),
+                      padding: const EdgeInsets.all(8),
+                    ),
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => SettingsScreen(
+                            setThemeMode: widget.setThemeMode,
+                          ),
+                        ),
+                      ).then((_) {
+                        _loadPreferences();
+                        _loadFolderLockState();
+                        _loadProfile();
+                      });
+                    },
+                    tooltip: 'Settings',
+                  ),
+                  const SizedBox(width: 10),
+                  GestureDetector(
+                    onTap: () async {
+                      HapticFeedback.lightImpact();
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ProfileScreen(),
+                        ),
+                      );
+                      _loadProfile();
+                    },
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryContainer(context),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          _avatarInitial,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: AppTheme.onPrimaryContainer(context),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ),
+          const SizedBox(height: 14),
+          // Greeting Block
+          Text(
+            '${_getGreeting()}${_userFirstName.isNotEmpty ? ', $_userFirstName' : ''} 👋',
+            style: GoogleFonts.plusJakartaSans(
+              fontWeight: FontWeight.bold,
+              fontSize: 24,
+              color: AppTheme.textPrimary(context),
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Let\'s organize your documents efficiently.',
+            style: GoogleFonts.plusJakartaSans(
+              fontWeight: FontWeight.w400,
+              fontSize: 13,
+              color: AppTheme.textMuted(context),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   void _openVoiceSearch() {
-    HapticFeedback.mediumImpact();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _VoiceSearchSheet(
-        initialQuery: _searchQuery,
-        onSearchSubmitted: (query) {
-          setState(() {
-            _searchController.text = query;
-            _searchQuery = query;
-          });
-        },
-      ),
+    VoiceSearchSheet.show(
+      context,
+      initialQuery: _searchQuery,
+      onSearchSubmitted: (query) {
+        setState(() {
+          _searchController.text = query;
+          _searchQuery = query;
+        });
+      },
     );
   }
 
   Widget _buildSearchBar(BuildContext context) {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-        child: Container(
-          height: 52,
-          decoration: BoxDecoration(
-            color: AppTheme.tonal(context),
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(
-              color: AppTheme.surfaceBorder(context),
-              width: 1,
-            ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+      child: Container(
+        height: 50,
+        decoration: BoxDecoration(
+          color: AppTheme.tonal(context),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(
+            color: AppTheme.surfaceBorder(context),
+            width: 1,
           ),
-          child: TextField(
-            controller: _searchController,
-            style: GoogleFonts.plusJakartaSans(
+        ),
+        child: TextField(
+          controller: _searchController,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: AppTheme.textPrimary(context),
+          ),
+          decoration: InputDecoration(
+            hintText: 'Search documents, files...',
+            hintStyle: GoogleFonts.plusJakartaSans(
+              color: AppTheme.textMuted(context),
               fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: AppTheme.textPrimary(context),
             ),
-            decoration: InputDecoration(
-              hintText: 'Search documents, files...',
-              hintStyle: GoogleFonts.plusJakartaSans(
-                color: AppTheme.textMuted(context),
-                fontSize: 14,
-              ),
-              prefixIcon: Icon(
-                Icons.search_rounded,
-                color: AppTheme.textSecondary(context),
-                size: 22,
-              ),
-              suffixIcon: _searchQuery.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear_rounded, size: 20),
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() {
-                          _searchQuery = '';
-                        });
-                      },
-                    )
-                  : IconButton(
-                      icon: Icon(
-                        Icons.mic_rounded,
-                        color: AppTheme.primary(context),
-                        size: 20,
-                      ),
-                      onPressed: _openVoiceSearch,
-                      tooltip: 'Voice Search',
+            prefixIcon: Icon(
+              Icons.search_rounded,
+              color: AppTheme.textSecondary(context),
+              size: 22,
+            ),
+            suffixIcon: _searchQuery.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear_rounded, size: 20),
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() {
+                        _searchQuery = '';
+                      });
+                    },
+                  )
+                : IconButton(
+                    icon: Icon(
+                      Icons.mic_rounded,
+                      color: AppTheme.primary(context),
+                      size: 20,
                     ),
-              filled: false,
-              border: InputBorder.none,
-              enabledBorder: InputBorder.none,
-              focusedBorder: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(
-                vertical: 14,
-                horizontal: 16,
-              ),
+                    onPressed: _openVoiceSearch,
+                    tooltip: 'Voice Search',
+                  ),
+            filled: false,
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 14,
+              horizontal: 16,
             ),
-            onChanged: (value) {
-              _searchDebouncer.call(() {
-                setState(() {
-                  _searchQuery = value;
-                });
-              });
-            },
           ),
+          onChanged: (value) {
+            _searchDebouncer.call(() {
+              setState(() {
+                _searchQuery = value;
+              });
+            });
+          },
         ),
       ),
     );
   }
 
   Widget _buildQuickActions(BuildContext context) {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-              child: Text(
-                'Quick Actions',
-                style: GoogleFonts.plusJakartaSans(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16,
-                  color: AppTheme.textPrimary(context),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            child: Text(
+              'Quick Actions',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+                color: AppTheme.textPrimary(context),
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildQuickActionCard(
+                    context,
+                    title: 'New Folder',
+                    icon: Icons.create_new_folder_outlined,
+                    bgColor: AppTheme.primaryContainer(context),
+                    fgColor: AppTheme.onPrimaryContainer(context),
+                    onTap: () => _showFolderCreationChooser(context),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildQuickActionCard(
+                    context,
+                    title: 'Notes',
+                    icon: Icons.edit_note_rounded,
+                    bgColor: AppTheme.secondaryContainer(context),
+                    fgColor: AppTheme.onSecondaryContainer(context),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const QuickNotesScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildQuickActionCard(
+                    context,
+                    title: 'Passwords',
+                    icon: Icons.password_rounded,
+                    bgColor: AppTheme.tertiaryContainer(context),
+                    fgColor: AppTheme.onTertiaryContainer(context),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const PasswordManagerScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 6),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _buildQuickActionCard(
-                      context,
-                      title: 'New Folder',
-                      icon: Icons.create_new_folder_outlined,
-                      bgColor: AppTheme.primaryContainer(context),
-                      fgColor: AppTheme.onPrimaryContainer(context),
-                      onTap: () => _showFolderCreationChooser(context),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildQuickActionCard(
-                      context,
-                      title: 'Notes',
-                      icon: Icons.edit_note_rounded,
-                      bgColor: AppTheme.secondaryContainer(context),
-                      fgColor: AppTheme.onSecondaryContainer(context),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const QuickNotesScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildQuickActionCard(
-                      context,
-                      title: 'Passwords',
-                      icon: Icons.password_rounded,
-                      bgColor: AppTheme.tertiaryContainer(context),
-                      fgColor: AppTheme.onTertiaryContainer(context),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const PasswordManagerScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -3125,92 +3272,101 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Widget _buildSectionTitle(BuildContext context, String title) {
     if (title != 'Your Collections') {
-      return SliverToBoxAdapter(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-          child: Text(
-            title,
-            style: GoogleFonts.plusJakartaSans(
-              fontWeight: FontWeight.w600,
-              fontSize: 16,
-              color: AppTheme.textPrimary(context),
-            ),
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 6),
+        child: Text(
+          title,
+          style: GoogleFonts.plusJakartaSans(
+            fontWeight: FontWeight.w600,
+            fontSize: 16,
+            color: AppTheme.textPrimary(context),
           ),
         ),
       );
     }
 
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 16, 8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                Text(
-                  'Your Collections',
+    final isFiltered = _currentFilter != 'all' || _currentSort != 'name_asc';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 16, 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Your Collections',
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                  color: AppTheme.textPrimary(context),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryContainer(context).withOpacity(0.55),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '${_filteredFolders.length}',
                   style: GoogleFonts.plusJakartaSans(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    color: AppTheme.textPrimary(context),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.onPrimaryContainer(context),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              // Sort & Filter chip
+              GestureDetector(
+                onTap: () => _showSortAndFilterSheet(context),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color:
-                        AppTheme.primaryContainer(context).withOpacity(0.55),
+                    color: isFiltered
+                        ? AppTheme.primaryContainer(context).withOpacity(0.4)
+                        : AppTheme.tonal(context),
                     borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    '${_filteredFolders.length}',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.onPrimaryContainer(context),
+                    border: Border.all(
+                      color: isFiltered
+                          ? AppTheme.primary(context)
+                          : AppTheme.surfaceBorder(context),
                     ),
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                // Sort chip
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: AppTheme.tonal(context),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: AppTheme.surfaceBorder(context)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Name',
+                        _getSortLabel(),
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: AppTheme.textSecondary(context),
+                          color: isFiltered
+                              ? AppTheme.primary(context)
+                              : AppTheme.textSecondary(context),
                         ),
                       ),
                       const SizedBox(width: 2),
                       Icon(
-                        Icons.arrow_downward_rounded,
-                        size: 13,
-                        color: AppTheme.textSecondary(context),
+                        Icons.arrow_drop_down_rounded,
+                        size: 16,
+                        color: isFiltered
+                            ? AppTheme.primary(context)
+                            : AppTheme.textSecondary(context),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
+              ),
+              const SizedBox(width: 8),
 
-                // Material 3 View Toggle Pill Container (Grid / List)
-                Container(
+              // Material 3 View Toggle Pill Container (Grid / List)
+              Container(
                   height: 32,
                   padding: const EdgeInsets.all(2),
                   decoration: BoxDecoration(
@@ -3295,8 +3451,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 
   String _getFolderSubtitle(FolderInfo folder) {
@@ -3487,66 +3642,77 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _buildEmptyState(BuildContext context) {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const EmptyFolderVectorAnimation(size: 110),
-            const SizedBox(height: 16),
-            Text(
-              _searchQuery.isEmpty
-                  ? 'Start Organizing'
-                  : 'No matching folders found',
-              style: GoogleFonts.plusJakartaSans(
-                fontWeight: FontWeight.w700,
-                fontSize: 18,
-                color: AppTheme.textPrimary(context),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const EmptyFolderVectorAnimation(size: 96),
+                    const SizedBox(height: 16),
+                    Text(
+                      _searchQuery.isEmpty
+                          ? 'Start Organizing'
+                          : 'No matching folders found',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
+                        color: AppTheme.textPrimary(context),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _searchQuery.isEmpty
+                          ? 'Create your first folder to get started.'
+                          : 'Try a different search term.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        color: AppTheme.textSecondary(context),
+                      ),
+                    ),
+                    if (_searchQuery.isEmpty) ...[
+                      const SizedBox(height: 18),
+                      FilledButton.icon(
+                        onPressed: () => _showFolderCreationChooser(context),
+                        icon: const Icon(Icons.add_rounded, size: 20),
+                        label: Text(
+                          'Create Folder',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppTheme.primary(context),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 26,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          elevation: 2,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              _searchQuery.isEmpty
-                  ? 'Create your first folder to get started.'
-                  : 'Try a different search term.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 13,
-                color: AppTheme.textSecondary(context),
-              ),
-            ),
-            if (_searchQuery.isEmpty) ...[
-              const SizedBox(height: 20),
-              FilledButton.icon(
-                onPressed: () => _showFolderCreationChooser(context),
-                icon: const Icon(Icons.add_rounded, size: 20),
-                label: Text(
-                  'Create Folder',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
-                  ),
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppTheme.primary(context),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 28,
-                    vertical: 14,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  elevation: 2,
-                ),
-              ),
-            ],
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -3958,301 +4124,6 @@ class _FolderCardContentState extends State<_FolderCardContent>
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-// ─── Material 3 Voice Search Bottom Sheet ───
-class _VoiceSearchSheet extends StatefulWidget {
-  final String initialQuery;
-  final ValueChanged<String> onSearchSubmitted;
-
-  const _VoiceSearchSheet({
-    required this.initialQuery,
-    required this.onSearchSubmitted,
-  });
-
-  @override
-  State<_VoiceSearchSheet> createState() => _VoiceSearchSheetState();
-}
-
-class _VoiceSearchSheetState extends State<_VoiceSearchSheet>
-    with SingleTickerProviderStateMixin {
-  late final TextEditingController _voiceInputController;
-  late final AnimationController _pulseController;
-  late final Animation<double> _pulseAnimation;
-  bool _isListening = true;
-
-  final List<String> _quickTopics = const [
-    'Documents',
-    'Images',
-    'Invoices',
-    'Notes',
-    'PDF',
-    'Personal',
-    'Receipts',
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _voiceInputController = TextEditingController(text: widget.initialQuery);
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat(reverse: true);
-    _pulseAnimation = CurvedAnimation(
-      parent: _pulseController,
-      curve: Curves.easeInOut,
-    );
-  }
-
-  @override
-  void dispose() {
-    _voiceInputController.dispose();
-    _pulseController.dispose();
-    super.dispose();
-  }
-
-  void _submitSearch(String query) {
-    final trimmed = query.trim();
-    widget.onSearchSubmitted(trimmed);
-    Navigator.of(context).pop();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    final isDark = AppTheme.isDark(context);
-
-    return Container(
-      padding: EdgeInsets.fromLTRB(20, 12, 20, 20 + bottomInset),
-      decoration: BoxDecoration(
-        color: AppTheme.surface(context),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border(
-          top: BorderSide(
-            color: AppTheme.surfaceBorder(context),
-            width: 1,
-          ),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.4 : 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Drag handle
-          Container(
-            width: 36,
-            height: 4,
-            margin: const EdgeInsets.only(bottom: 18),
-            decoration: BoxDecoration(
-              color: AppTheme.textMuted(context).withOpacity(0.3),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-
-          // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Voice Search',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary(context),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _isListening ? 'Listening for keywords...' : 'Tap mic to resume listening',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
-                      color: _isListening
-                          ? AppTheme.primary(context)
-                          : AppTheme.textMuted(context),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-              IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.close_rounded),
-                color: AppTheme.textSecondary(context),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          // Animated Pulsing Mic Button
-          GestureDetector(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              setState(() {
-                _isListening = !_isListening;
-                if (_isListening) {
-                  _pulseController.repeat(reverse: true);
-                } else {
-                  _pulseController.stop();
-                }
-              });
-            },
-            child: AnimatedBuilder(
-              animation: _pulseAnimation,
-              builder: (context, child) {
-                final scale = _isListening ? 1.0 + (_pulseAnimation.value * 0.12) : 1.0;
-                final ringOpacity = _isListening
-                    ? (0.28 - (_pulseAnimation.value * 0.18)).clamp(0.05, 0.3)
-                    : 0.0;
-                return Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Container(
-                      width: 96 * scale,
-                      height: 96 * scale,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppTheme.primary(context).withOpacity(ringOpacity),
-                      ),
-                    ),
-                    Container(
-                      width: 72,
-                      height: 72,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppTheme.primary(context),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.primary(context).withOpacity(0.35),
-                            blurRadius: 16,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Icon(
-                        _isListening ? Icons.mic_rounded : Icons.mic_off_rounded,
-                        color: Colors.white,
-                        size: 34,
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-
-          const SizedBox(height: 18),
-
-          // Voice / Query Input Box
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppTheme.tonal(context),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: AppTheme.surfaceBorder(context),
-                width: 1,
-              ),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _voiceInputController,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary(context),
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Speak or type query...',
-                      hintStyle: GoogleFonts.plusJakartaSans(
-                        fontSize: 14,
-                        color: AppTheme.textMuted(context),
-                      ),
-                      border: InputBorder.none,
-                      isDense: true,
-                    ),
-                    onSubmitted: _submitSearch,
-                  ),
-                ),
-                if (_voiceInputController.text.isNotEmpty)
-                  IconButton(
-                    icon: const Icon(Icons.clear_rounded, size: 18),
-                    color: AppTheme.textSecondary(context),
-                    onPressed: () {
-                      _voiceInputController.clear();
-                      setState(() {});
-                    },
-                  ),
-                IconButton(
-                  icon: const Icon(Icons.arrow_forward_rounded, size: 20),
-                  color: AppTheme.primary(context),
-                  onPressed: () => _submitSearch(_voiceInputController.text),
-                  tooltip: 'Search',
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Quick Topic Chips
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Quick Suggestions',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.textSecondary(context),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _quickTopics.map((topic) {
-              return ActionChip(
-                label: Text(
-                  topic,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: AppTheme.onPrimaryContainer(context),
-                  ),
-                ),
-                backgroundColor: AppTheme.primaryContainer(context).withOpacity(0.55),
-                side: BorderSide(
-                  color: AppTheme.primary(context).withOpacity(0.2),
-                  width: 1,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                onPressed: () {
-                  HapticFeedback.lightImpact();
-                  _submitSearch(topic);
-                },
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 8),
-        ],
       ),
     );
   }

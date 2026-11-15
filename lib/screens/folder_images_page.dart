@@ -29,6 +29,7 @@ import 'package:gallery_app/utils/responsive_layout.dart';
 import 'package:gallery_app/utils/text_utils.dart';
 import 'package:printing/printing.dart';
 import 'package:gallery_app/theme/app_theme.dart';
+import 'package:gallery_app/widgets/voice_search_sheet.dart';
 import 'pdf_tools_screen.dart';
 
 class FolderImagesPage extends StatefulWidget {
@@ -64,10 +65,74 @@ class _FolderImagesPageState extends State<FolderImagesPage>
   FileSortOption _currentSortOption = FileSortOption.dateAscending;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  String _filterCategory = 'All';
   FileType? _selectedFilterType;
   List<String> _favoriteFiles = [];
   bool _isLockedSession = false;
   bool _isGridView = true;
+
+  List<FileInfo> get _filteredFiles {
+    return _files.where((f) {
+      if (_searchQuery.isNotEmpty && !f.name.toLowerCase().contains(_searchQuery)) {
+        return false;
+      }
+      if (_filterCategory == 'Images' && f.type != FileType.image) return false;
+      if (_filterCategory == 'PDFs' && f.type != FileType.pdf) return false;
+      if (_filterCategory == 'Documents' && f.type != FileType.document) return false;
+      if (_filterCategory == 'Favorites' && !_favoriteFiles.contains(f.path)) return false;
+      return true;
+    }).toList();
+  }
+
+  Widget _buildFolderFilterChip(String label, IconData icon) {
+    final isSelected = _filterCategory == label;
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() => _filterCategory = label);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppTheme.primaryContainer(context)
+              : AppTheme.tonal(context),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: isSelected
+                ? AppTheme.primary(context)
+                : AppTheme.surfaceBorder(context),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: isSelected
+                  ? AppTheme.onPrimaryContainer(context)
+                  : AppTheme.textSecondary(context),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected
+                    ? AppTheme.onPrimaryContainer(context)
+                    : AppTheme.textSecondary(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -2086,81 +2151,112 @@ class _FolderImagesPageState extends State<FolderImagesPage>
                               ),
                             ],
                     ),
+                    // Home-screen style Search Bar & Filter Chips
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Theme.of(
-                                  context,
-                                ).shadowColor.withOpacity(0.08),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: TextField(
-                            controller: _searchController,
-                            style: GoogleFonts.poppins(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'Search files...',
-                              hintStyle: GoogleFonts.poppins(
-                                color: Theme.of(
-                                  context,
-                                ).hintColor.withOpacity(0.5),
-                                fontSize: 15,
-                                fontWeight: FontWeight.w400,
-                              ),
-                              prefixIcon: Container(
-                                padding: const EdgeInsets.all(14),
-                                child: Icon(
-                                  Icons.search_rounded,
-                                  color: Theme.of(context).primaryColor,
-                                  size: 22,
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              height: 50,
+                              decoration: BoxDecoration(
+                                color: AppTheme.tonal(context),
+                                borderRadius: BorderRadius.circular(28),
+                                border: Border.all(
+                                  color: AppTheme.surfaceBorder(context),
+                                  width: 1,
                                 ),
                               ),
-                              suffixIcon: _searchQuery.isNotEmpty
-                                  ? IconButton(
-                                      icon: Container(
-                                        padding: const EdgeInsets.all(6),
-                                        decoration: BoxDecoration(
-                                          color: Theme.of(context).primaryColor.withOpacity(0.1),
-                                          shape: BoxShape.circle,
+                              child: TextField(
+                                controller: _searchController,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppTheme.textPrimary(context),
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: 'Search files in ${widget.folder.name}...',
+                                  hintStyle: GoogleFonts.plusJakartaSans(
+                                    color: AppTheme.textMuted(context),
+                                    fontSize: 14,
+                                  ),
+                                  prefixIcon: Icon(
+                                    Icons.search_rounded,
+                                    color: AppTheme.textSecondary(context),
+                                    size: 22,
+                                  ),
+                                  suffixIcon: _searchQuery.isNotEmpty
+                                      ? IconButton(
+                                          icon: const Icon(Icons.clear_rounded, size: 20),
+                                          onPressed: () {
+                                            _searchController.clear();
+                                            setState(() => _searchQuery = '');
+                                          },
+                                        )
+                                      : IconButton(
+                                          icon: Icon(
+                                            Icons.mic_rounded,
+                                            color: AppTheme.primary(context),
+                                            size: 20,
+                                          ),
+                                          onPressed: () {
+                                            VoiceSearchSheet.show(
+                                              context,
+                                              initialQuery: _searchQuery,
+                                              quickTopics: const [
+                                                'PDF',
+                                                'Images',
+                                                'Documents',
+                                                'Invoices',
+                                                'Receipts',
+                                                'Notes',
+                                              ],
+                                              onSearchSubmitted: (query) {
+                                                setState(() {
+                                                  _searchController.text = query;
+                                                  _searchQuery = query.toLowerCase();
+                                                });
+                                              },
+                                            );
+                                          },
+                                          tooltip: 'Voice Search',
                                         ),
-                                        child: Icon(Icons.close_rounded, size: 18, color: Theme.of(context).primaryColor),
-                                      ),
-                                      onPressed: () => setState(() {
-                                        _searchController.clear();
-                                        _searchQuery = '';
-                                      }),
-                                    )
-                                  : null,
-                              filled: true,
-                              fillColor: Theme.of(context).cardColor.withOpacity(0.7),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(20),
-                                borderSide: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.1)),
+                                  filled: false,
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                    horizontal: 16,
+                                  ),
+                                ),
+                                onChanged: (value) => setState(
+                                  () => _searchQuery = value.toLowerCase(),
+                                ),
                               ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(20),
-                                borderSide: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.1)),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(20),
-                                borderSide: BorderSide(color: Theme.of(context).primaryColor.withOpacity(0.5), width: 2),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                             ),
-                            onChanged: (value) => setState(
-                              () => _searchQuery = value.toLowerCase(),
+                            const SizedBox(height: 10),
+                            // Quick Filter Chips
+                            SizedBox(
+                              height: 34,
+                              child: ListView(
+                                scrollDirection: Axis.horizontal,
+                                physics: const BouncingScrollPhysics(),
+                                children: [
+                                  _buildFolderFilterChip('All', Icons.grid_view_rounded),
+                                  const SizedBox(width: 8),
+                                  _buildFolderFilterChip('Images', Icons.image_rounded),
+                                  const SizedBox(width: 8),
+                                  _buildFolderFilterChip('PDFs', Icons.picture_as_pdf_rounded),
+                                  const SizedBox(width: 8),
+                                  _buildFolderFilterChip('Documents', Icons.description_rounded),
+                                  const SizedBox(width: 8),
+                                  _buildFolderFilterChip('Favorites', Icons.star_rounded),
+                                ],
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ),
                     ),
@@ -2180,94 +2276,98 @@ class _FolderImagesPageState extends State<FolderImagesPage>
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Container(
-                                width: 140,
-                                height: 140,
+                                width: 120,
+                                height: 120,
                                 decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      Theme.of(
-                                        context,
-                                      ).primaryColor.withOpacity(0.08),
-                                      Theme.of(
-                                        context,
-                                      ).primaryColor.withOpacity(0.02),
-                                    ],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
+                                  color: AppTheme.primaryContainer(context).withOpacity(0.4),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
-                                  _searchQuery.isNotEmpty
-                                      ? Icons.search_off_rounded
-                                      : Icons.folder_open_rounded,
-                                  size: 64,
-                                  color: Theme.of(
-                                    context,
-                                  ).primaryColor.withOpacity(0.4),
+                                  Icons.folder_open_rounded,
+                                  size: 56,
+                                  color: AppTheme.primary(context),
                                 ),
                               ),
-                              const SizedBox(height: 32),
+                              const SizedBox(height: 24),
                               Text(
-                                _searchQuery.isNotEmpty
-                                    ? 'No Results Found'
-                                    : 'Empty Folder',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 24,
+                                'Empty Folder',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 22,
                                   fontWeight: FontWeight.bold,
-                                  color: Theme.of(
-                                    context,
-                                  ).textTheme.titleLarge?.color,
-                                  letterSpacing: 0.3,
+                                  color: AppTheme.textPrimary(context),
                                 ),
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 8),
                               Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 48,
-                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 48),
                                 child: Text(
-                                  _searchQuery.isNotEmpty
-                                      ? 'No files match "$_searchQuery". Try a different search term.'
-                                      : 'Start adding files to organize your documents',
+                                  'Start adding files to organize your documents.',
                                   textAlign: TextAlign.center,
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 15,
-                                    color: Theme.of(context).hintColor,
-                                    height: 1.5,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 14,
+                                    color: AppTheme.textSecondary(context),
                                   ),
                                 ),
                               ),
-                              if (_searchQuery.isEmpty) ...[
-                                const SizedBox(height: 40),
-                                ElevatedButton.icon(
-                                  onPressed: _pickFiles,
-                                  icon: const Icon(
-                                    Icons.upload_file_rounded,
-                                    size: 20,
-                                  ),
-                                  label: Text(
-                                    'Add Files',
-                                    style: GoogleFonts.poppins(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppTheme.primary(context),
-                                    foregroundColor: Colors.white,
-                                    elevation: 2,
-                                    shadowColor: AppTheme.primary(context).withOpacity(0.3),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 36,
-                                      vertical: 18,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
+                              const SizedBox(height: 24),
+                              ElevatedButton.icon(
+                                onPressed: _pickFiles,
+                                icon: const Icon(Icons.upload_file_rounded, size: 20),
+                                label: const Text('Add Files'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.primary(context),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
                                   ),
                                 ),
-                              ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else if (_filteredFiles.isEmpty)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.search_off_rounded,
+                                size: 56,
+                                color: AppTheme.textMuted(context),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No matching files found',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.textPrimary(context),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Try clearing your search query or filters',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13,
+                                  color: AppTheme.textSecondary(context),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              OutlinedButton.icon(
+                                icon: const Icon(Icons.clear_all_rounded, size: 18),
+                                label: const Text('Clear Filters'),
+                                onPressed: () {
+                                  setState(() {
+                                    _searchController.clear();
+                                    _searchQuery = '';
+                                    _filterCategory = 'All';
+                                  });
+                                },
+                              ),
                             ],
                           ),
                         ),
@@ -2275,7 +2375,7 @@ class _FolderImagesPageState extends State<FolderImagesPage>
                     else ...[
                       SliverToBoxAdapter(child: _buildSummaryRow()),
                       const SliverToBoxAdapter(child: SizedBox(height: 12)),
-                      if (_selectedFilterType != null)
+                      if (_searchQuery.isNotEmpty || _filterCategory != 'All')
                         _buildFilteredGrid()
                       else
                         _buildGroupedList(),
@@ -2444,9 +2544,7 @@ class _FolderImagesPageState extends State<FolderImagesPage>
   }
 
   Widget _buildFilteredGrid() {
-    final filteredFiles = _files
-        .where((f) => f.type == _selectedFilterType)
-        .toList();
+    final filteredFiles = _filteredFiles;
     if (filteredFiles.isEmpty) {
       return SliverToBoxAdapter(
         child: Center(
@@ -2457,12 +2555,16 @@ class _FolderImagesPageState extends State<FolderImagesPage>
                 Icon(
                   Icons.search_off_rounded,
                   size: 48,
-                  color: Colors.grey.shade300,
+                  color: AppTheme.textMuted(context),
                 ),
                 const SizedBox(height: 16),
                 Text(
                   "No items found",
-                  style: GoogleFonts.poppins(color: Colors.grey, fontSize: 16),
+                  style: GoogleFonts.plusJakartaSans(
+                    color: AppTheme.textSecondary(context),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),

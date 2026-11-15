@@ -13,6 +13,10 @@ import 'package:file_picker/file_picker.dart' as fp;
 import 'package:gallery_app/services/zip_service.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import '../models/user_profile.dart';
+import '../services/profile_service.dart';
+import 'profile_screen.dart';
+import '../theme/app_theme.dart';
 
 class SettingsScreen extends StatefulWidget {
   final Function(ThemeMode) setThemeMode;
@@ -31,14 +35,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _appLockEnabled = false;
   bool _folderLockEnabled = false;
   bool _notificationsEnabled = true;
+  UserProfile? _profile;
 
   @override
   void initState() {
     super.initState();
+    _loadProfile();
     _loadPreferences();
     _calculateStorageInfo();
     _loadAppLockSettings();
     _loadNotificationSettings();
+  }
+
+  Future<void> _loadProfile() async {
+    final profile = await ProfileService.getProfile();
+    if (mounted) setState(() => _profile = profile);
   }
 
   Future<void> _loadPreferences() async {
@@ -350,20 +361,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Text('Manage your preferences and app settings', style: GoogleFonts.poppins(fontSize: 12, color: _getSubTextColor(isDark))),
             ],
           ),
-          actions: [
-            Padding(
-               padding: const EdgeInsets.only(right: 16),
-               child: Container(
-                  decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05))),
-                  child: IconButton(
-                     icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined, color: _getSubTextColor(isDark)),
-                     onPressed: () {
-                         _saveTheme(isDark ? ThemeMode.light : ThemeMode.dark);
-                     }, 
-                  )
-               )
-            )
-          ],
+          // Theme action icon removed per user request
         ),
       ),
       body: SingleChildScrollView(
@@ -372,6 +370,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            _buildSectionTitle('ACCOUNT & PROFILE').animate().fade(delay: 30.ms),
+            _buildCardGroup(isDark, [
+              _buildSettingRow(
+                isDark,
+                customLeading: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryContainer(context),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      (_profile?.username.isNotEmpty ?? false)
+                          ? _profile!.username[0].toUpperCase()
+                          : 'U',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        color: AppTheme.onPrimaryContainer(context),
+                      ),
+                    ),
+                  ),
+                ),
+                title: _profile?.username ?? 'Uday Kiran',
+                subtitle: _profile?.email ?? 'uday.docs@gmail.com',
+                trailing: _buildArrow(isDark),
+                onTap: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                  );
+                  _loadProfile();
+                },
+              ),
+            ]),
+            const SizedBox(height: 16),
             _buildSectionTitle('PREFERENCES').animate().fade(delay: 50.ms),
             _buildCardGroup(isDark, [
               _buildSettingRow(isDark, icon: Icons.language_rounded, title: 'Language', subtitle: 'English', trailing: _buildArrow(isDark), onTap: () => _showDummySnackBar('Language settings coming soon!')),
@@ -512,17 +547,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildSettingRow(bool isDark, {required IconData icon, required String title, required String subtitle, required Widget trailing, VoidCallback? onTap}) {
+  Widget _buildSettingRow(bool isDark, {IconData? icon, Widget? customLeading, required String title, required String subtitle, required Widget trailing, VoidCallback? onTap}) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      leading: Container(
+      leading: customLeading ?? Container(
         width: 44,
         height: 44,
         decoration: BoxDecoration(
           color: _getIconBgColor(isDark),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(icon, color: _getIconColor(isDark)),
+        child: Icon(icon ?? Icons.settings_rounded, color: _getIconColor(isDark)),
       ),
       title: Text(title, style: GoogleFonts.poppins(color: _getTextColor(isDark), fontSize: 14, fontWeight: FontWeight.w500)),
       subtitle: Text(subtitle, style: GoogleFonts.poppins(color: _getSubTextColor(isDark), fontSize: 12)),

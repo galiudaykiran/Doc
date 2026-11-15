@@ -320,6 +320,7 @@ class _NotesPageState extends State<NotesPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Notes cleared!', style: GoogleFonts.poppins()),
+            duration: const Duration(seconds: 3),
           ),
         );
       }
@@ -337,7 +338,10 @@ class _NotesPageState extends State<NotesPage> {
     } else {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('No notes to share!')));
+      ).showSnackBar(const SnackBar(
+        content: Text('No notes to share!'),
+        duration: Duration(seconds: 3),
+      ));
     }
   }
 
@@ -347,6 +351,7 @@ class _NotesPageState extends State<NotesPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Copied to clipboard', style: GoogleFonts.poppins()),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -403,6 +408,7 @@ class _NotesPageState extends State<NotesPage> {
               'Exported to $fileName',
               style: GoogleFonts.poppins(),
             ),
+            duration: const Duration(seconds: 3),
             action: SnackBarAction(
               label: 'Share',
               onPressed: () => Share.shareXFiles([XFile(filePath)]),
@@ -415,6 +421,7 @@ class _NotesPageState extends State<NotesPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Export failed: $e', style: GoogleFonts.poppins()),
+            duration: const Duration(seconds: 3),
             backgroundColor: Colors.red,
           ),
         );
@@ -459,6 +466,7 @@ class _NotesPageState extends State<NotesPage> {
               'PDF ready to print/save',
               style: GoogleFonts.poppins(),
             ),
+            duration: const Duration(seconds: 3),
           ),
         );
       }
@@ -470,6 +478,7 @@ class _NotesPageState extends State<NotesPage> {
               'PDF export failed: $e',
               style: GoogleFonts.poppins(),
             ),
+            duration: const Duration(seconds: 3),
             backgroundColor: Colors.red,
           ),
         );
