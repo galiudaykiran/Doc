@@ -32,6 +32,7 @@ import 'package:gallery_app/utils/text_utils.dart';
 import 'package:printing/printing.dart';
 import 'package:gallery_app/theme/app_theme.dart';
 import 'package:gallery_app/widgets/voice_search_sheet.dart';
+import 'package:gallery_app/widgets/duplicate_file_dialog.dart';
 import 'pdf_tools_screen.dart';
 
 class FolderImagesPage extends StatefulWidget {
@@ -351,34 +352,85 @@ class _FolderImagesPageState extends State<FolderImagesPage>
 
       if (result == null || result.files.isEmpty) return;
 
+      if (result.files.length > 5) {
+        showProcessingSnackBar(context, message: 'Importing ${result.files.length} files... This may take a few seconds');
+      }
+
       setState(() {
         _isLoading = true;
       });
 
+      DuplicateFileResolution? rememberedResolution;
+      int importedCount = 0;
+
       for (var platformFile in result.files) {
         if (platformFile.path == null) continue;
 
-        final String fileName = platformFile.name;
-        final File newFile = File(
-          '${widget.folder.path}${Platform.pathSeparator}$fileName',
-        );
-        await File(platformFile.path!).copy(newFile.path);
+        String targetFileName = platformFile.name;
+        String targetPath =
+            '${widget.folder.path}${Platform.pathSeparator}$targetFileName';
 
+        if (File(targetPath).existsSync()) {
+          DuplicateFileResolution resolution;
+          if (rememberedResolution != null && rememberedResolution.applyToAll) {
+            resolution = rememberedResolution;
+          } else {
+            final res = await DuplicateFileDialog.show(
+              context,
+              fileName: targetFileName,
+              destinationFolderName: widget.folder.name,
+              showApplyToAll: result.files.length > 1,
+            );
+            if (res == null || res.action == DuplicateFileAction.skip) {
+              continue;
+            }
+            resolution = res;
+            if (res.applyToAll) {
+              rememberedResolution = res;
+            }
+          }
+
+          if (resolution.action == DuplicateFileAction.replace) {
+            await File(platformFile.path!).copy(targetPath);
+            _files.removeWhere((f) => f.path == targetPath);
+            _files.add(
+              FileInfo(
+                name: targetFileName,
+                path: targetPath,
+                type: getFileType(targetPath),
+              ),
+            );
+            importedCount++;
+            continue;
+          } else if (resolution.action == DuplicateFileAction.keepBoth) {
+            targetFileName = DuplicateFileDialog.generateUniqueFileName(
+              widget.folder.path,
+              targetFileName,
+            );
+            targetPath =
+                '${widget.folder.path}${Platform.pathSeparator}$targetFileName';
+          }
+        }
+
+        await File(platformFile.path!).copy(targetPath);
         _files.add(
           FileInfo(
-            name: fileName,
-            path: newFile.path,
-            type: getFileType(newFile.path),
+            name: targetFileName,
+            path: targetPath,
+            type: getFileType(targetPath),
           ),
         );
+        importedCount++;
       }
+
+      _sortFiles();
 
       setState(() {
         _isLoading = false;
       });
 
       Fluttertoast.showToast(
-        msg: "${result.files.length} files added",
+        msg: "$importedCount file(s) imported",
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.BOTTOM,
       );
@@ -404,17 +456,37 @@ class _FolderImagesPageState extends State<FolderImagesPage>
       final String fileName = pickedFile.path
           .split(Platform.pathSeparator)
           .last;
-      final File newFile = File(
-        '${widget.folder.path}${Platform.pathSeparator}$fileName',
-      );
-      await File(pickedFile.path).copy(newFile.path);
+      String targetFileName = fileName;
+      String targetPath =
+          '${widget.folder.path}${Platform.pathSeparator}$targetFileName';
+
+      if (File(targetPath).existsSync()) {
+        final res = await DuplicateFileDialog.show(
+          context,
+          fileName: targetFileName,
+          destinationFolderName: widget.folder.name,
+        );
+        if (res == null || res.action == DuplicateFileAction.skip) return;
+        if (res.action == DuplicateFileAction.replace) {
+          _files.removeWhere((f) => f.path == targetPath);
+        } else if (res.action == DuplicateFileAction.keepBoth) {
+          targetFileName = DuplicateFileDialog.generateUniqueFileName(
+            widget.folder.path,
+            targetFileName,
+          );
+          targetPath =
+              '${widget.folder.path}${Platform.pathSeparator}$targetFileName';
+        }
+      }
+
+      await File(pickedFile.path).copy(targetPath);
 
       setState(() {
         _files.add(
           FileInfo(
-            name: fileName,
-            path: newFile.path,
-            type: getFileType(newFile.path),
+            name: targetFileName,
+            path: targetPath,
+            type: getFileType(targetPath),
           ),
         );
       });
@@ -451,6 +523,7 @@ class _FolderImagesPageState extends State<FolderImagesPage>
 
       // Show loading dialog for processing after scanning is done
       if (!mounted) return;
+      showProcessingSnackBar(context, message: 'Processing document... This may take a few seconds');
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -1172,6 +1245,7 @@ class _FolderImagesPageState extends State<FolderImagesPage>
     if (confirm != true) return;
 
     if (!mounted) return;
+    showProcessingSnackBar(context, message: 'Extracting images from PDF... This may take a few seconds');
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1360,6 +1434,7 @@ class _FolderImagesPageState extends State<FolderImagesPage>
 
     if (archiveName == null || archiveName.isEmpty) return;
 
+    showProcessingSnackBar(context, message: 'Creating ZIP archive... This may take a few seconds');
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1400,6 +1475,7 @@ class _FolderImagesPageState extends State<FolderImagesPage>
 
     if (result == null || result.files.isEmpty || result.files.first.path == null) return;
 
+    showProcessingSnackBar(context, message: 'Extracting ZIP archive... This may take a few seconds');
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1433,6 +1509,7 @@ class _FolderImagesPageState extends State<FolderImagesPage>
   Future<void> _createPdfFromSelected() async {
     if (_selectedFiles.isEmpty) return;
 
+    showProcessingSnackBar(context, message: 'Preparing PDF pages... This may take a few seconds');
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1786,13 +1863,25 @@ class _FolderImagesPageState extends State<FolderImagesPage>
       );
 
       if (destination != null) {
-        final String newPath =
-            '${destination.path}${Platform.pathSeparator}${file.name}';
+        String targetName = file.name;
+        String newPath =
+            '${destination.path}${Platform.pathSeparator}$targetName';
         
         // Check if file already exists in destination
         if (await File(newPath).exists()) {
-          Fluttertoast.showToast(msg: "A file with this name already exists in destination.");
-          return;
+          final res = await DuplicateFileDialog.show(
+            context,
+            fileName: file.name,
+            destinationFolderName: destination.name,
+          );
+          if (res == null || res.action == DuplicateFileAction.skip) return;
+          if (res.action == DuplicateFileAction.keepBoth) {
+            targetName = DuplicateFileDialog.generateUniqueFileName(
+              destination.path,
+              targetName,
+            );
+            newPath = '${destination.path}${Platform.pathSeparator}$targetName';
+          }
         }
 
         await File(file.path).copy(newPath);

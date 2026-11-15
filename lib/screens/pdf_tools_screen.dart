@@ -20,6 +20,7 @@ import 'package:gallery_app/widgets/pdf_source_picker.dart';
 import 'package:gallery_app/screens/text_to_pdf_screen.dart';
 import 'package:gallery_app/utils/text_utils.dart';
 import 'package:gallery_app/theme/app_theme.dart';
+import 'package:gallery_app/widgets/duplicate_file_dialog.dart';
 
 class PdfToolsScreen extends StatefulWidget {
   final String? initialFilePath;
@@ -414,6 +415,7 @@ class _PdfToolsScreenState extends State<PdfToolsScreen> {
 
     if (result == null) return;
 
+    showProcessingSnackBar(context, message: 'Processing images into PDF... This may take a few seconds');
     setState(() => _isProcessing = true);
 
     try {
@@ -507,6 +509,7 @@ class _PdfToolsScreenState extends State<PdfToolsScreen> {
 
     final String selectedFolder = result['folder'] as String;
 
+    showProcessingSnackBar(context, message: 'Extracting images from PDF... This may take a few seconds');
     setState(() => _isProcessing = true);
 
     try {
@@ -597,6 +600,7 @@ class _PdfToolsScreenState extends State<PdfToolsScreen> {
 
     if (quality == null) return;
 
+    showProcessingSnackBar(context, message: 'Compressing PDF... This may take a few seconds');
     setState(() => _isProcessing = true);
 
     try {
@@ -935,8 +939,21 @@ class _PdfToolsScreenState extends State<PdfToolsScreen> {
     } else {
       // Save to selected folder
       final selectedFolder = result['folder'] as String;
-      final outputPath =
-          '$selectedFolder/${prefix}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      String targetName = '${prefix}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      String outputPath = '$selectedFolder/$targetName';
+
+      if (File(outputPath).existsSync()) {
+        final res = await DuplicateFileDialog.show(
+          context,
+          fileName: targetName,
+        );
+        if (res == null || res.action == DuplicateFileAction.skip) return null;
+        if (res.action == DuplicateFileAction.keepBoth) {
+          targetName = DuplicateFileDialog.generateUniqueFileName(selectedFolder, targetName);
+          outputPath = '$selectedFolder/$targetName';
+        }
+      }
+
       final file = File(outputPath);
       await file.writeAsBytes(pdfBytes);
       return outputPath;

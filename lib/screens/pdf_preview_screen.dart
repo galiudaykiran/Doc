@@ -19,6 +19,7 @@ import 'package:printing/printing.dart';
 import 'package:file_picker/file_picker.dart' as fp;
 import 'package:gallery_app/services/document_scanner_service.dart';
 import 'package:gallery_app/utils/text_utils.dart';
+import 'package:gallery_app/widgets/duplicate_file_dialog.dart';
 
 class PdfPreviewScreen extends StatefulWidget {
   final List<FileInfo> initialImages;
@@ -530,7 +531,7 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
       return;
     }
 
-    Fluttertoast.showToast(msg: "Generating PDF...");
+    showProcessingSnackBar(context, message: 'Generating PDF... This may take a few seconds');
 
     try {
       final pdf = pw.Document();
@@ -654,6 +655,22 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
           }
         } else {
           return; // Cancelled bottom sheet
+        }
+      }
+
+      if (File(savePath).existsSync()) {
+        final folderDir = savePath.substring(0, savePath.lastIndexOf(Platform.pathSeparator));
+        final baseName = savePath.split(Platform.pathSeparator).last;
+        final res = await DuplicateFileDialog.show(
+          context,
+          fileName: baseName,
+        );
+        if (res == null || res.action == DuplicateFileAction.skip) {
+          return;
+        }
+        if (res.action == DuplicateFileAction.keepBoth) {
+          final uniqueName = DuplicateFileDialog.generateUniqueFileName(folderDir, baseName);
+          savePath = '$folderDir${Platform.pathSeparator}$uniqueName';
         }
       }
 
