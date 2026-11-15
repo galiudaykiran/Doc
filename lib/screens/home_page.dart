@@ -109,6 +109,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     await _loadPreferences();
     _initFolders();
     _calculateStorage();
+    RecentActivityService.autoPruneAndClean(checkExistence: true);
   }
 
   Future<void> _loadFolderLockState() async {
@@ -522,6 +523,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
       final List<FileSystemEntity> entities = await folderDir.list().toList();
       final List<FolderInfo> folders = [];
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
 
       for (var entity in entities) {
         if (entity is Directory) {
@@ -545,7 +547,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               );
             }
           }
-          final SharedPreferences prefs = await SharedPreferences.getInstance();
           final String? customThumbnailPath = prefs.getString(
             'folder_thumbnail_${entity.path}',
           );

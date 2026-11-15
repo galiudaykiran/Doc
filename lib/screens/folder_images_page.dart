@@ -68,7 +68,6 @@ class _FolderImagesPageState extends State<FolderImagesPage>
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   String _filterCategory = 'All';
-  FileType? _selectedFilterType;
   List<String> _favoriteFiles = [];
   bool _isLockedSession = false;
   bool _isGridView = true;
@@ -86,8 +85,27 @@ class _FolderImagesPageState extends State<FolderImagesPage>
     }).toList();
   }
 
+  int _getCategoryCount(String category) {
+    switch (category) {
+      case 'All':
+        return _files.length;
+      case 'Images':
+        return _files.where((f) => f.type == FileType.image).length;
+      case 'PDFs':
+        return _files.where((f) => f.type == FileType.pdf).length;
+      case 'Documents':
+        return _files.where((f) => f.type == FileType.document).length;
+      case 'Favorites':
+        return _files.where((f) => _favoriteFiles.contains(f.path)).length;
+      default:
+        return 0;
+    }
+  }
+
   Widget _buildFolderFilterChip(String label, IconData icon) {
     final isSelected = _filterCategory == label;
+    final count = _getCategoryCount(label);
+
     return InkWell(
       borderRadius: BorderRadius.circular(999),
       onTap: () {
@@ -130,6 +148,28 @@ class _FolderImagesPageState extends State<FolderImagesPage>
                     : AppTheme.textSecondary(context),
               ),
             ),
+            if (count > 0) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppTheme.primary(context).withOpacity(0.18)
+                      : AppTheme.surfaceBorder(context),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$count',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: isSelected
+                        ? AppTheme.onPrimaryContainer(context)
+                        : AppTheme.textSecondary(context),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -288,17 +328,13 @@ class _FolderImagesPageState extends State<FolderImagesPage>
     _files.sort((a, b) {
       switch (_currentSortOption) {
         case FileSortOption.dateAscending:
-          return File(
-            a.path,
-          ).lastModifiedSync().compareTo(File(b.path).lastModifiedSync());
+          return a.lastModified.compareTo(b.lastModified);
         case FileSortOption.dateDescending:
-          return File(
-            b.path,
-          ).lastModifiedSync().compareTo(File(a.path).lastModifiedSync());
+          return b.lastModified.compareTo(a.lastModified);
         case FileSortOption.sizeAscending:
-          return File(a.path).lengthSync().compareTo(File(b.path).lengthSync());
+          return a.size.compareTo(b.size);
         case FileSortOption.sizeDescending:
-          return File(b.path).lengthSync().compareTo(File(a.path).lengthSync());
+          return b.size.compareTo(a.size);
         case FileSortOption.nameAscending:
           return a.name.toLowerCase().compareTo(b.name.toLowerCase());
         case FileSortOption.nameDescending:
@@ -2383,8 +2419,7 @@ class _FolderImagesPageState extends State<FolderImagesPage>
                         ),
                       )
                     else ...[
-                      SliverToBoxAdapter(child: _buildSummaryRow()),
-                      const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                      const SliverToBoxAdapter(child: SizedBox(height: 8)),
                       if (_searchQuery.isNotEmpty || _filterCategory != 'All')
                         _buildFilteredGrid()
                       else
@@ -2625,7 +2660,7 @@ class _FolderImagesPageState extends State<FolderImagesPage>
     for (var file in _files) {
       if (_searchQuery.isNotEmpty && !file.name.toLowerCase().contains(_searchQuery)) continue;
       
-      final date = File(file.path).lastModifiedSync();
+      final date = file.lastModified;
       final difference = now.difference(date).inDays;
       if (difference == 0 && now.day == date.day) {
         today.add(file);
@@ -2766,111 +2801,6 @@ class _FolderImagesPageState extends State<FolderImagesPage>
     return DateFormat('MMM d, yyyy').format(date);
   }
 
-  Widget _buildSummaryRow() {
-    final imageCount = _files.where((file) => file.type == FileType.image).length;
-    final pdfCount = _files.where((file) => file.type == FileType.pdf).length;
-    final otherCount = _files.length - imageCount - pdfCount;
-
-    Widget buildStatChip(
-      IconData icon,
-      String label,
-      int count,
-      Color color,
-      FileType? type,
-    ) {
-      final isSelected = _selectedFilterType == type;
-
-      return Padding(
-        padding: const EdgeInsets.only(right: 12.0),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () {
-              setState(() {
-                if (type == null) {
-                  _selectedFilterType = null;
-                } else {
-                  _selectedFilterType = isSelected ? null : type;
-                }
-              });
-            },
-            borderRadius: BorderRadius.circular(24),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: isSelected ? Theme.of(context).primaryColor : Theme.of(context).cardColor,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: isSelected ? Colors.transparent : Theme.of(context).dividerColor.withOpacity(0.1),
-                  width: 1,
-                ),
-                boxShadow: isSelected
-                    ? [BoxShadow(color: Theme.of(context).primaryColor.withOpacity(0.3), blurRadius: 16, offset: const Offset(0, 6))]
-                    : [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2))],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    icon,
-                    size: 18,
-                    color: isSelected 
-                        ? (Theme.of(context).primaryColor.computeLuminance() > 0.5 ? Colors.black : Colors.white)
-                        : Theme.of(context).iconTheme.color,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    label,
-                    style: GoogleFonts.poppins(
-                      color: isSelected 
-                          ? (Theme.of(context).primaryColor.computeLuminance() > 0.5 ? Colors.black : Colors.white)
-                          : Theme.of(context).textTheme.bodyLarge?.color,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: isSelected ? Colors.white.withOpacity(0.2) : Theme.of(context).primaryColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '$count',
-                      style: GoogleFonts.poppins(
-                        color: isSelected ? Colors.white : Theme.of(context).primaryColor,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        clipBehavior: Clip.none,
-        child: Row(
-          children: [
-            buildStatChip(Icons.grid_view_rounded, 'All', _files.length, Theme.of(context).primaryColor, null),
-            buildStatChip(Icons.image_outlined, 'Images', imageCount, Theme.of(context).primaryColor, FileType.image),
-            buildStatChip(Icons.picture_as_pdf_outlined, 'PDFs', pdfCount, Theme.of(context).primaryColor, FileType.pdf),
-            buildStatChip(Icons.description_outlined, 'Docs', otherCount, Theme.of(context).primaryColor, FileType.unknown),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildShimmerEffect() {
     return GridView.builder(

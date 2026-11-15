@@ -6,21 +6,26 @@ class FolderInfo {
   final String path;
   final List<FileInfo> files;
   final String? customThumbnailPath;
+  DateTime? _lastModified;
+  String? _cachedThumbnailPath;
 
   FolderInfo({
     required this.name,
     required this.path,
     this.files = const [],
     this.customThumbnailPath,
-  });
+    DateTime? lastModified,
+  }) : _lastModified = lastModified;
 
   int get fileCount => files.length;
 
   DateTime get lastModified {
+    if (_lastModified != null) return _lastModified!;
     try {
       final dir = Directory(path);
       if (dir.existsSync()) {
-        return dir.statSync().modified;
+        _lastModified = dir.statSync().modified;
+        return _lastModified!;
       }
     } catch (_) {}
     return DateTime.fromMillisecondsSinceEpoch(0);
@@ -30,7 +35,15 @@ class FolderInfo {
     if (customThumbnailPath != null) {
       return customThumbnailPath;
     }
-    final imageFiles = files.where((file) => file.type == FileType.image).toList();
-    return imageFiles.isNotEmpty ? imageFiles.first.path : null;
+    if (_cachedThumbnailPath != null) {
+      return _cachedThumbnailPath;
+    }
+    for (final f in files) {
+      if (f.type == FileType.image) {
+        _cachedThumbnailPath = f.path;
+        return f.path;
+      }
+    }
+    return null;
   }
 }

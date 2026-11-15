@@ -5,18 +5,37 @@ class FileInfo {
   final String name;
   final String path;
   final FileType type;
+  DateTime? _lastModified;
+  int? _size;
 
   FileInfo({
     required this.name,
     required this.path,
     required this.type,
-  });
+    DateTime? lastModified,
+    int? size,
+  })  : _lastModified = lastModified,
+        _size = size;
 
-  int get size {
+  DateTime get lastModified {
+    if (_lastModified != null) return _lastModified!;
     try {
       final file = File(path);
       if (file.existsSync()) {
-        return file.lengthSync();
+        _lastModified = file.lastModifiedSync();
+        return _lastModified!;
+      }
+    } catch (_) {}
+    return DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  int get size {
+    if (_size != null) return _size!;
+    try {
+      final file = File(path);
+      if (file.existsSync()) {
+        _size = file.lengthSync();
+        return _size!;
       }
     } catch (_) {}
     return 0;
@@ -88,4 +107,3 @@ FileType getFileType(String path) {
       return FileType.unknown;
   }
 }
-
