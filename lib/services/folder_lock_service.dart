@@ -125,7 +125,7 @@ class FolderLockService {
                 _isSessionValid = true;
                 Navigator.pop(context, true);
               } else {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Incorrect PIN')));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Incorrect PIN'), duration: Duration(seconds: 3)));
               }
             },
             child: Text('Unlock', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),

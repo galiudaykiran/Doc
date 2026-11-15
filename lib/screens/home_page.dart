@@ -3652,55 +3652,55 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
             child: Center(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const EmptyFolderVectorAnimation(size: 96),
-                    const SizedBox(height: 16),
+                    const EmptyFolderVectorAnimation(size: 72),
+                    const SizedBox(height: 12),
                     Text(
                       _searchQuery.isEmpty
                           ? 'Start Organizing'
                           : 'No matching folders found',
                       style: GoogleFonts.plusJakartaSans(
                         fontWeight: FontWeight.w700,
-                        fontSize: 18,
+                        fontSize: 16,
                         color: AppTheme.textPrimary(context),
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Text(
                       _searchQuery.isEmpty
                           ? 'Create your first folder to get started.'
                           : 'Try a different search term.',
                       textAlign: TextAlign.center,
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
+                        fontSize: 12,
                         color: AppTheme.textSecondary(context),
                       ),
                     ),
                     if (_searchQuery.isEmpty) ...[
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 14),
                       FilledButton.icon(
                         onPressed: () => _showFolderCreationChooser(context),
-                        icon: const Icon(Icons.add_rounded, size: 20),
+                        icon: const Icon(Icons.add_rounded, size: 18),
                         label: Text(
                           'Create Folder',
                           style: GoogleFonts.plusJakartaSans(
                             fontWeight: FontWeight.w600,
-                            fontSize: 14,
+                            fontSize: 13,
                           ),
                         ),
                         style: FilledButton.styleFrom(
                           backgroundColor: AppTheme.primary(context),
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 26,
-                            vertical: 12,
+                            horizontal: 22,
+                            vertical: 10,
                           ),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(24),
+                            borderRadius: BorderRadius.circular(22),
                           ),
                           elevation: 2,
                         ),

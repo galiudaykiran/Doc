@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart' as fp;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:gallery_app/models/file_info.dart';
 import 'package:gallery_app/models/folder_info.dart';
@@ -23,6 +24,7 @@ import 'package:gallery_app/services/folder_lock_service.dart';
 import 'package:gallery_app/widgets/optimized_image.dart';
 import 'package:gallery_app/services/document_scanner_service.dart';
 import 'package:gallery_app/services/trash_service.dart';
+import 'package:gallery_app/services/recent_activity_service.dart';
 import 'package:gallery_app/screens/document_metadata_screen.dart';
 import 'package:gallery_app/services/zip_service.dart';
 import 'package:gallery_app/utils/responsive_layout.dart';
@@ -1503,6 +1505,10 @@ class _FolderImagesPageState extends State<FolderImagesPage>
       final success = await TrashService.instance.moveFileToTrash(file.path);
       debugPrint('TrashService: moveFileToTrash returned $success');
       if (success) {
+        await RecentActivityService.removeActivity(
+          targetPath: file.path,
+          title: file.name,
+        );
         await _loadFiles(); // Reload files to ensure UI reflects changes immediately
         Fluttertoast.showToast(
           msg: "Moved to trash",
@@ -2042,6 +2048,10 @@ class _FolderImagesPageState extends State<FolderImagesPage>
                                           if (success) successCount++;
                                         } catch (_) {}
                                       }
+                                      await RecentActivityService.removeActivities(
+                                        titles: filesToDelete.map((f) => f.name).toList(),
+                                        paths: filesToDelete.map((f) => f.path).toList(),
+                                      );
                                       setState(() {
                                         _selectedFiles.clear();
                                         _multiSelectMode = false;

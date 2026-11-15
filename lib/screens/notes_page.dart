@@ -252,6 +252,16 @@ class _NotesPageState extends State<NotesPage> {
           }
         }
       }
+      if (noteTitle == 'Quick Note' && widget.folderPath.isNotEmpty && widget.folderPath != 'quick_notes') {
+        final sep = Platform.pathSeparator;
+        final clean = widget.folderPath.endsWith(sep)
+            ? widget.folderPath.substring(0, widget.folderPath.length - 1)
+            : widget.folderPath;
+        final parts = clean.split(sep);
+        if (parts.isNotEmpty && parts.last.isNotEmpty) {
+          noteTitle = '${parts.last} Notes';
+        }
+      }
       await RecentActivityService.recordActivity(
         title: noteTitle,
         subtitle: 'Edited quick note',

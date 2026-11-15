@@ -4,7 +4,7 @@ import '../models/recent_activity_item.dart';
 
 class RecentActivityService {
   static const String _storageKey = 'hub_recent_activity_list_v2';
-  static const int _maxItems = 10;
+  static const int _maxItems = 50;
 
   static Future<List<RecentActivityItem>> getActivities() async {
     final prefs = await SharedPreferences.getInstance();

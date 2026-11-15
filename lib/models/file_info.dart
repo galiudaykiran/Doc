@@ -38,6 +38,14 @@ class FileInfo {
         return Icons.insert_drive_file;
     }
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FileInfo && runtimeType == other.runtimeType && path == other.path;
+
+  @override
+  int get hashCode => path.hashCode;
 }
 
 enum FileType {
@@ -80,3 +88,4 @@ FileType getFileType(String path) {
       return FileType.unknown;
   }
 }
+
