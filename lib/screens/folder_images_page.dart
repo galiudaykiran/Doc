@@ -2713,15 +2713,12 @@ class _FolderImagesPageState extends State<FolderImagesPage>
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: ResponsiveLayout.getAdaptiveGridColumns(
                   context,
-                  minItemWidth: 110,
+                  minItemWidth: 150,
                   minColumns: 2,
                 ),
                 crossAxisSpacing: 12.0,
-                mainAxisSpacing: 16.0,
-                childAspectRatio: ResponsiveLayout.getCardAspectRatio(
-                  context,
-                  isCompactGrid: true,
-                ),
+                mainAxisSpacing: 14.0,
+                childAspectRatio: 0.82,
               ),
               delegate: SliverChildBuilderDelegate(
                 (context, index) => _buildFileCard(filteredFiles[index]),
@@ -2833,15 +2830,12 @@ class _FolderImagesPageState extends State<FolderImagesPage>
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: ResponsiveLayout.getAdaptiveGridColumns(
                     context,
-                    minItemWidth: 110,
+                    minItemWidth: 150,
                     minColumns: 2,
                   ),
                   crossAxisSpacing: 12.0,
-                  mainAxisSpacing: 16.0,
-                  childAspectRatio: ResponsiveLayout.getCardAspectRatio(
-                    context,
-                    isCompactGrid: true,
-                  ),
+                  mainAxisSpacing: 14.0,
+                  childAspectRatio: 0.82,
                 ),
                 itemCount: filesOfType.length,
                 itemBuilder: (context, index) {
@@ -2924,7 +2918,6 @@ class _FolderImagesPageState extends State<FolderImagesPage>
   Widget _buildFileCard(FileInfo file) {
     final isSelected = _selectedFiles.contains(file);
     final isFavorite = _favoriteFiles.contains(file.path);
-    final theme = Theme.of(context);
     return RepaintBoundary(
       child: GestureDetector(
         onTap: () async {
@@ -2971,179 +2964,191 @@ class _FolderImagesPageState extends State<FolderImagesPage>
             });
           }
         },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AspectRatio(
-              aspectRatio: 1.0,
-              child: Hero(
-                tag: file.path,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppTheme.surface(context),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected ? AppTheme.primary(context) : AppTheme.surfaceBorder(context),
+              width: isSelected ? 2.5 : 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(AppTheme.isDark(context) ? 0.25 : 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Container(
                   decoration: BoxDecoration(
-                    color: theme.cardColor,
-                    borderRadius: BorderRadius.circular(20),
-                    border: isSelected
-                        ? Border.all(color: theme.primaryColor, width: 3)
-                        : Border.all(
-                            color: theme.dividerColor.withOpacity(0.05),
-                            width: 1,
-                          ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
-                        blurRadius: 15,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(19)),
+                    color: AppTheme.tonal(context),
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(isSelected ? 16 : 20),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        if (file.type == FileType.image)
-                          OptimizedImage(
-                            path: file.path,
-                            fit: BoxFit.cover,
-                            errorWidget: Container(
-                              color: theme.brightness == Brightness.dark
-                                  ? Colors.grey.shade800
-                                  : Colors.grey.shade200,
-                              child: Center(
-                                child: Icon(
-                                  Icons.broken_image_rounded,
-                                  color: theme.brightness == Brightness.dark
-                                      ? Colors.grey.shade600
-                                      : Colors.grey.shade400,
-                                  size: 32,
+                  clipBehavior: Clip.antiAlias,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Hero(
+                        tag: file.path,
+                        child: file.type == FileType.image
+                            ? OptimizedImage(
+                                path: file.path,
+                                fit: BoxFit.cover,
+                                errorWidget: Container(
+                                  color: AppTheme.tonal(context),
+                                  child: Center(
+                                    child: Icon(
+                                      Icons.broken_image_rounded,
+                                      color: AppTheme.textMuted(context),
+                                      size: 32,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            : Container(
+                                width: double.infinity,
+                                height: double.infinity,
+                                color: AppTheme.tonal(context),
+                                child: Center(
+                                  child: Container(
+                                    width: 48,
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.primaryContainer(context),
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    child: Icon(
+                                      file.icon,
+                                      size: 28,
+                                      color: AppTheme.primary(context),
+                                    ),
+                                  ),
                                 ),
                               ),
+                      ),
+
+                      // Favorite Indicator
+                      if (isFavorite && !_multiSelectMode)
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.45),
+                              shape: BoxShape.circle,
                             ),
-                          )
-                        else
-                          Container(
-                            width: double.infinity,
-                            height: double.infinity,
-                            color: theme.brightness == Brightness.dark
-                                ? const Color(0xFF2A2A2A)
-                                : Colors.grey.shade100,
-                            padding: const EdgeInsets.all(8),
-                            child: Center(
-                              child: Icon(
-                                file.icon,
-                                size: 48,
-                                color: theme.primaryColor,
-                              ),
+                            child: const Icon(
+                              Icons.star_rounded,
+                              color: Colors.amber,
+                              size: 14,
                             ),
                           ),
+                        ),
 
-                        // Favorite Indicator
-                        if (isFavorite && !_multiSelectMode)
-                          Positioned(
-                            top: 6,
-                            left: 6,
+                      // Selection Indicator
+                      if (_multiSelectMode)
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          child: Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: isSelected ? AppTheme.primary(context) : Colors.black38,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            child: isSelected
+                                ? const Icon(
+                                    Icons.check_rounded,
+                                    size: 16,
+                                    color: Colors.white,
+                                  )
+                                : null,
+                          ),
+                        ),
+
+                      // Frosted Options Button (Top-Right, matching Collections card)
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(20),
+                            onTap: () => _showFileOptions(file),
                             child: Container(
                               padding: const EdgeInsets.all(4),
                               decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.5),
+                                color: AppTheme.surface(context).withOpacity(0.85),
                                 shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.star_rounded,
-                                color: Colors.orange,
-                                size: 14,
-                              ),
-                            ),
-                          ),
-
-                        // Selection Indicator
-                        if (_multiSelectMode)
-                          Positioned(
-                            top: 8,
-                            right: 8,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: isSelected ? theme.primaryColor : Colors.black26,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 2),
+                                border: Border.all(color: AppTheme.surfaceBorder(context)),
                               ),
                               child: Icon(
-                                isSelected ? Icons.check : null,
-                                size: 18,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-
-                        // Bottom Info Gradient Overlay
-                        Positioned(
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
-                          child: Container(
-                            height: 40,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.transparent,
-                                  Colors.black.withOpacity(0.5),
-                                ],
+                                Icons.more_vert_rounded,
+                                color: AppTheme.textSecondary(context),
+                                size: 16,
                               ),
                             ),
                           ),
                         ),
-
-                        // Options Button
-                        Positioned(
-                          bottom: 4,
-                          right: 4,
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(20),
-                              onTap: () => _showFileOptions(file),
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(
-                                  color: theme.brightness == Brightness.dark
-                                      ? Colors.black54
-                                      : Colors.white70,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.more_vert_rounded,
-                                  size: 16,
-                                  color: theme.textTheme.bodyMedium?.color,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                file.name,
-                style: GoogleFonts.inter(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14,
-                  color: theme.textTheme.bodyLarge?.color,
+
+              // Bottom Details Row matching Collections Card
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      file.name,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: AppTheme.textPrimary(context),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _formatBytes(file.size),
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              color: AppTheme.textSecondary(context),
+                              fontWeight: FontWeight.w400,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          file.icon,
+                          color: AppTheme.primary(context),
+                          size: 13,
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
