@@ -13,6 +13,7 @@ import 'package:pro_image_editor/pro_image_editor.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:gallery_app/screens/document_metadata_screen.dart';
 import 'package:gallery_app/utils/text_utils.dart';
+import 'package:gallery_app/screens/text_extraction_screen.dart';
 
 class FileViewPage extends StatefulWidget {
   final List<FileInfo> files;
@@ -449,6 +450,24 @@ class _FileViewPageState extends State<FileViewPage>
                     ],
                   ),
                   centerTitle: false,
+                  actions: [
+                    if (currentFile.type == FileType.image)
+                      IconButton(
+                        icon: const Icon(Icons.document_scanner_outlined, color: Colors.white),
+                        tooltip: 'Extract Text (OCR)',
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => TextExtractionScreen(
+                                initialImagePath: currentFile.path,
+                                autoExtractTitle: currentFile.name,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                  ],
                 ),
               ),
             ),

@@ -1,12 +1,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 
-/// Optimized image widget with automatic caching and error handling
+/// Optimized image widget with automatic caching, high quality, and STRICT aspect ratio preservation.
 class OptimizedImage extends StatelessWidget {
   final String path;
   final double? width;
   final double? height;
   final BoxFit fit;
+  final Alignment alignment;
   final Widget? placeholder;
   final Widget? errorWidget;
 
@@ -16,6 +17,7 @@ class OptimizedImage extends StatelessWidget {
     this.width,
     this.height,
     this.fit = BoxFit.cover,
+    this.alignment = Alignment.center,
     this.placeholder,
     this.errorWidget,
   });
@@ -33,25 +35,25 @@ class OptimizedImage extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Use actual layout size for cache resolution when no explicit size given
-        final double effectiveWidth =
-            width ??
-            (constraints.maxWidth.isFinite ? constraints.maxWidth : 800);
-        final double effectiveHeight =
-            height ??
-            (constraints.maxHeight.isFinite ? constraints.maxHeight : 800);
-
-        // Ensure high quality for crisp rendering (3x resolution)
-        final int finalCacheWidth = (effectiveWidth * dpr * 3).clamp(600, 4000).round();
-        final int finalCacheHeight = (effectiveHeight * dpr * 3).clamp(600, 4000).round();
+        // Calculate appropriate cacheWidth based on rendering dimensions.
+        // CRITICAL: We ONLY specify cacheWidth and leave cacheHeight as null!
+        // In Flutter, when both cacheWidth and cacheHeight are specified, the engine
+        // forcibly squishes/stretches the image to that exact bounding box ratio,
+        // distorting the natural aspect ratio of faces and objects.
+        // Specifying only cacheWidth scales down the image while maintaining 100% of
+        // its original proportional aspect ratio without any compression artifact!
+        final double targetW = width ??
+            (constraints.maxWidth.isFinite ? constraints.maxWidth : 400);
+        final int cacheW = (targetW * dpr * 2.5).clamp(400, 2400).round();
 
         return Image.file(
           file,
-          width: width,
-          height: height,
+          width: width ?? (constraints.maxWidth.isFinite ? double.infinity : null),
+          height: height ?? (constraints.maxHeight.isFinite ? double.infinity : null),
           fit: fit,
-          cacheWidth: finalCacheWidth,
-          cacheHeight: finalCacheHeight,
+          alignment: alignment,
+          cacheWidth: cacheW,
+          cacheHeight: null, // Always null to preserve native aspect ratio without distortion!
           filterQuality: FilterQuality.high,
           errorBuilder: (context, error, stackTrace) {
             return errorWidget ??

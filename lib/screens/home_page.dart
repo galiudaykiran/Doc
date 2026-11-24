@@ -47,6 +47,7 @@ import 'package:gallery_app/models/user_profile.dart';
 import 'package:gallery_app/services/profile_service.dart';
 import 'package:gallery_app/screens/profile_screen.dart';
 import 'package:gallery_app/widgets/voice_search_sheet.dart';
+import 'package:gallery_app/screens/text_extraction_screen.dart';
 
 class HomePage extends StatefulWidget {
   final Function(ThemeMode) setThemeMode;
@@ -2098,42 +2099,60 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Widget _buildHeader(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top Brand & Profile Bar
+          // Top Brand & Profile Bar - Responsive Greeting in App Bar
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryContainer(context),
-                      borderRadius: BorderRadius.circular(12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            '${_getGreeting()}${_userFirstName.isNotEmpty ? ', $_userFirstName' : ''}',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 21,
+                              color: AppTheme.textPrimary(context),
+                              letterSpacing: -0.4,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Text(
+                          '👋',
+                          style: TextStyle(fontSize: 19),
+                        ),
+                      ],
                     ),
-                    child: Icon(
-                      Icons.folder_special_rounded,
-                      color: AppTheme.primary(context),
-                      size: 22,
+                    const SizedBox(height: 2),
+                    Text(
+                      'Let\'s organize your documents efficiently.',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w400,
+                        fontSize: 12,
+                        color: AppTheme.textMuted(context),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Document Hub',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 22,
-                      color: AppTheme.textPrimary(context),
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+              const SizedBox(width: 10),
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
                     icon: Icon(
@@ -2197,26 +2216,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ],
               ),
             ],
-          ),
-          const SizedBox(height: 14),
-          // Greeting Block
-          Text(
-            '${_getGreeting()}${_userFirstName.isNotEmpty ? ', $_userFirstName' : ''} 👋',
-            style: GoogleFonts.plusJakartaSans(
-              fontWeight: FontWeight.bold,
-              fontSize: 24,
-              color: AppTheme.textPrimary(context),
-              letterSpacing: -0.5,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Let\'s organize your documents efficiently.',
-            style: GoogleFonts.plusJakartaSans(
-              fontWeight: FontWeight.w400,
-              fontSize: 13,
-              color: AppTheme.textMuted(context),
-            ),
           ),
         ],
       ),
@@ -2660,6 +2659,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     onTap: () {
                       Navigator.pop(ctx);
                       _scanDocumentToRoot();
+                    },
+                  ),
+                  _buildDocToolTile(
+                    context,
+                    icon: Icons.text_fields_rounded,
+                    title: 'Extract Text (OCR)',
+                    subtitle: 'Extract text from scanned images/gallery, share or convert to PDF',
+                    color: const Color(0xFF6366F1),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const TextExtractionScreen(),
+                        ),
+                      );
                     },
                   ),
                   _buildDocToolTile(

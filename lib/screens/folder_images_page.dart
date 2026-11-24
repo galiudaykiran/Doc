@@ -33,6 +33,7 @@ import 'package:printing/printing.dart';
 import 'package:gallery_app/theme/app_theme.dart';
 import 'package:gallery_app/widgets/voice_search_sheet.dart';
 import 'package:gallery_app/widgets/duplicate_file_dialog.dart';
+import 'package:gallery_app/screens/text_extraction_screen.dart';
 import 'pdf_tools_screen.dart';
 
 class FolderImagesPage extends StatefulWidget {
@@ -997,6 +998,31 @@ class _FolderImagesPageState extends State<FolderImagesPage>
                 _copyFile(file);
               },
             ),
+            if (file.type == FileType.image) ...[
+              ListTile(
+                leading: Icon(Icons.document_scanner_rounded, color: Theme.of(context).primaryColor),
+                title: Text(
+                  'Extract Text (OCR)',
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+                ),
+                subtitle: Text(
+                  'Extract text to share or convert into PDF',
+                  style: GoogleFonts.poppins(fontSize: 11, color: Colors.grey),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => TextExtractionScreen(
+                        initialImagePath: file.path,
+                        autoExtractTitle: file.name,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
             if (file.type == FileType.pdf) ...[
               ListTile(
                 leading: Icon(Icons.call_split_rounded, color: Theme.of(context).primaryColor),
