@@ -114,16 +114,41 @@ class _TodoPageState extends State<TodoPage>
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) => AlertDialog(
-          backgroundColor: Theme.of(dialogContext).cardColor,
+          backgroundColor: AppTheme.surface(dialogContext),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(24),
+            side: BorderSide(color: AppTheme.surfaceBorder(dialogContext), width: 1),
           ),
-          title: Text(
-            editTodo == null ? 'Add New Todo' : 'Edit Todo',
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          titlePadding: const EdgeInsets.fromLTRB(24, 22, 24, 16),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+          actionsPadding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary(context).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  editTodo == null ? Icons.add_task_rounded : Icons.edit_note_rounded,
+                  color: AppTheme.primary(context),
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  editTodo == null ? 'Add New Todo' : 'Edit Todo',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 18,
+                    color: AppTheme.textPrimary(context),
+                  ),
+                ),
+              ),
+            ],
           ),
           content: SingleChildScrollView(
             child: Column(
@@ -132,54 +157,83 @@ class _TodoPageState extends State<TodoPage>
               children: [
                 TextField(
                   controller: titleController,
+                  autofocus: true,
+                  style: GoogleFonts.plusJakartaSans(
+                    color: AppTheme.textPrimary(context),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                   decoration: InputDecoration(
                     labelText: 'Title *',
-                    labelStyle: GoogleFonts.poppins(color: Theme.of(context).hintColor),
+                    labelStyle: GoogleFonts.plusJakartaSans(
+                      color: AppTheme.textSecondary(context),
+                      fontSize: 13,
+                    ),
+                    hintText: 'What needs to be done?',
+                    hintStyle: GoogleFonts.plusJakartaSans(
+                      color: AppTheme.textMuted(context),
+                      fontSize: 13,
+                    ),
                     filled: true,
-                    fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    fillColor: AppTheme.tonal(context),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: AppTheme.surfaceBorder(context)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: AppTheme.surfaceBorder(context)),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: Theme.of(context).colorScheme.onSurface,
-                        width: 2,
-                      ),
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: AppTheme.primary(context), width: 1.5),
                     ),
                   ),
-                  style: GoogleFonts.poppins(color: Theme.of(context).colorScheme.onSurface),
-                  autofocus: true,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
                 TextField(
                   controller: descController,
+                  maxLines: 3,
+                  style: GoogleFonts.plusJakartaSans(
+                    color: AppTheme.textPrimary(context),
+                    fontSize: 13,
+                  ),
                   decoration: InputDecoration(
                     labelText: 'Description',
-                    labelStyle: GoogleFonts.poppins(color: Theme.of(context).hintColor),
+                    labelStyle: GoogleFonts.plusJakartaSans(
+                      color: AppTheme.textSecondary(context),
+                      fontSize: 13,
+                    ),
+                    hintText: 'Add details or notes (optional)...',
+                    hintStyle: GoogleFonts.plusJakartaSans(
+                      color: AppTheme.textMuted(context),
+                      fontSize: 13,
+                    ),
                     filled: true,
-                    fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    fillColor: AppTheme.tonal(context),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: AppTheme.surfaceBorder(context)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: AppTheme.surfaceBorder(context)),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: Theme.of(context).colorScheme.onSurface,
-                        width: 2,
-                      ),
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: AppTheme.primary(context), width: 1.5),
                     ),
                   ),
-                  style: GoogleFonts.poppins(color: Theme.of(context).colorScheme.onSurface),
-                  maxLines: 3,
                 ),
                 const SizedBox(height: 16),
                 Text(
                   'Priority',
-                  style: GoogleFonts.poppins(
+                  style: GoogleFonts.plusJakartaSans(
                     fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: Theme.of(context).colorScheme.onSurface,
+                    fontSize: 13,
+                    color: AppTheme.textSecondary(context),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -213,88 +267,126 @@ class _TodoPageState extends State<TodoPage>
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        selectedDueDate == null
-                            ? 'No due date'
-                            : 'Due: ${DateFormat('MMM dd, yyyy').format(selectedDueDate!)}',
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
+                const SizedBox(height: 14),
+                // Due date selector card
+                InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: selectedDueDate ?? DateTime.now(),
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (picked != null) {
+                      setDialogState(() => selectedDueDate = picked);
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.tonal(context),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppTheme.surfaceBorder(context)),
                     ),
-                    TextButton.icon(
-                      onPressed: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: selectedDueDate ?? DateTime.now(),
-                          firstDate: DateTime.now(),
-                          lastDate: DateTime.now().add(
-                            const Duration(days: 365),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(7),
+                          decoration: BoxDecoration(
+                            color: (selectedDueDate != null ? AppTheme.primary(context) : AppTheme.textMuted(context)).withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(9),
                           ),
-                          builder: (context, child) {
-                            return Theme(
-                              data: Theme.of(context).copyWith(
-                                colorScheme: ColorScheme.light(
-                                  primary: AppTheme.primary(context),
-                                  onPrimary: Colors.white,
+                          child: Icon(
+                            Icons.calendar_today_rounded,
+                            size: 16,
+                            color: selectedDueDate != null ? AppTheme.primary(context) : AppTheme.textMuted(context),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Due Date',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppTheme.textMuted(context),
                                 ),
                               ),
-                              child: child!,
-                            );
-                          },
-                        );
-                        if (picked != null) {
-                          setDialogState(() => selectedDueDate = picked);
-                        }
-                      },
-                      icon: const Icon(Icons.calendar_today, size: 16),
-                      label: Text(
-                        selectedDueDate == null ? 'Set Date' : 'Change',
-                        style: GoogleFonts.poppins(fontSize: 12),
-                      ),
-                    ),
-                    if (selectedDueDate != null)
-                      IconButton(
-                        icon: const Icon(Icons.clear, size: 16),
-                        onPressed: () =>
-                            setDialogState(() => selectedDueDate = null),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  initialValue: selectedCategory,
-                  decoration: InputDecoration(
-                    labelText: 'Category (Optional)',
-                    labelStyle: GoogleFonts.poppins(color: Colors.black87),
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                        color: Colors.black,
-                        width: 2,
-                      ),
+                              Text(
+                                selectedDueDate == null
+                                    ? 'No date set (Optional)'
+                                    : DateFormat('EEE, MMM d, yyyy').format(selectedDueDate!),
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13,
+                                  fontWeight: selectedDueDate != null ? FontWeight.w600 : FontWeight.w400,
+                                  color: selectedDueDate != null ? AppTheme.textPrimary(context) : AppTheme.textSecondary(context),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (selectedDueDate != null)
+                          GestureDetector(
+                            onTap: () => setDialogState(() => selectedDueDate = null),
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: AppTheme.surfaceBorder(context),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(Icons.close_rounded, size: 14, color: AppTheme.textSecondary(context)),
+                            ),
+                          )
+                        else
+                          Icon(Icons.chevron_right_rounded, size: 18, color: AppTheme.textMuted(context)),
+                      ],
                     ),
                   ),
-                  style: GoogleFonts.poppins(color: Colors.black87),
-                  dropdownColor: Colors.white,
+                ),
+                const SizedBox(height: 14),
+                // Category dropdown
+                DropdownButtonFormField<String>(
+                  initialValue: selectedCategory,
+                  dropdownColor: AppTheme.surface(context),
+                  icon: Icon(Icons.keyboard_arrow_down_rounded, color: AppTheme.textSecondary(context)),
+                  decoration: InputDecoration(
+                    labelText: 'Category (Optional)',
+                    labelStyle: GoogleFonts.plusJakartaSans(
+                      color: AppTheme.textSecondary(context),
+                      fontSize: 13,
+                    ),
+                    filled: true,
+                    fillColor: AppTheme.tonal(context),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: AppTheme.surfaceBorder(context)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: AppTheme.surfaceBorder(context)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: AppTheme.primary(context), width: 1.5),
+                    ),
+                  ),
+                  style: GoogleFonts.plusJakartaSans(
+                    color: AppTheme.textPrimary(context),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
                   items: [
                     DropdownMenuItem<String>(
                       value: null,
                       child: Text(
                         'None',
-                        style: GoogleFonts.poppins(color: Colors.black87),
+                        style: GoogleFonts.plusJakartaSans(color: AppTheme.textMuted(context)),
                       ),
                     ),
                     ...[
@@ -310,7 +402,7 @@ class _TodoPageState extends State<TodoPage>
                         value: cat,
                         child: Text(
                           cat,
-                          style: GoogleFonts.poppins(color: Colors.black87),
+                          style: GoogleFonts.plusJakartaSans(color: AppTheme.textPrimary(context)),
                         ),
                       ),
                     ),
@@ -324,12 +416,16 @@ class _TodoPageState extends State<TodoPage>
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                foregroundColor: AppTheme.textSecondary(context),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
               child: Text(
                 'Cancel',
-                style: GoogleFonts.poppins(color: Colors.grey),
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 14),
               ),
             ),
-            ElevatedButton(
+            FilledButton.icon(
               onPressed: () async {
                 if (titleController.text.trim().isEmpty) {
                   Fluttertoast.showToast(msg: 'Please enter a title');
@@ -385,16 +481,16 @@ class _TodoPageState extends State<TodoPage>
                   msg: editTodo == null ? 'Todo added!' : 'Todo updated!',
                 );
               },
-              style: ElevatedButton.styleFrom(
+              icon: Icon(editTodo == null ? Icons.add_rounded : Icons.check_rounded, size: 18),
+              label: Text(
+                editTodo == null ? 'Add Todo' : 'Save',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 14),
+              ),
+              style: FilledButton.styleFrom(
                 backgroundColor: AppTheme.primary(context),
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Text(
-                editTodo == null ? 'Add' : 'Update',
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
             ),
           ],
@@ -407,34 +503,39 @@ class _TodoPageState extends State<TodoPage>
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: Theme.of(context).cardColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: AppTheme.surface(context),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+          side: BorderSide(color: AppTheme.surfaceBorder(context), width: 1),
+        ),
         title: Text(
-          'Delete Todo',
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.onSurface,
+          'Delete Todo?',
+          style: GoogleFonts.plusJakartaSans(
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+            color: AppTheme.textPrimary(context),
           ),
         ),
         content: Text(
-          'Are you sure you want to delete "${todo.title}"?',
-          style: GoogleFonts.poppins(color: Theme.of(context).colorScheme.onSurface),
+          'Are you sure you want to delete "${todo.title}"? This cannot be undone.',
+          style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppTheme.textSecondary(context)),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: Text(
               'Cancel',
-              style: GoogleFonts.poppins(color: Theme.of(context).hintColor),
+              style: GoogleFonts.plusJakartaSans(color: AppTheme.textMuted(context)),
             ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.onSurface,
-              foregroundColor: Theme.of(context).colorScheme.surface,
+              backgroundColor: const Color(0xFFB3261E),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            child: Text('Delete', style: GoogleFonts.poppins()),
+            child: Text('Delete', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -962,43 +1063,65 @@ class _PriorityChip extends StatelessWidget {
     required this.onTap,
   });
 
-  Color get _priorityColor {
+  Color _priorityColor(BuildContext context) {
+    final isDark = AppTheme.isDark(context);
     switch (priority) {
       case 0:
-        return const Color(0xFF0D652D);
+        return isDark ? const Color(0xFF86EFAC) : const Color(0xFF15803D);
       case 1:
-        return const Color(0xFFB06000);
+        return isDark ? const Color(0xFFFCD34D) : const Color(0xFFB45309);
       case 2:
-        return const Color(0xFFB3261E);
+        return isDark ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C);
       default:
-        return const Color(0xFF0D652D);
+        return isDark ? const Color(0xFF86EFAC) : const Color(0xFF15803D);
     }
   }
 
-  Color get _priorityBgColor {
+  Color _priorityBgColor(BuildContext context) {
+    final isDark = AppTheme.isDark(context);
     switch (priority) {
       case 0:
-        return const Color(0xFFE6F4EA);
+        return isDark ? const Color(0xFF14532D).withOpacity(0.4) : const Color(0xFFDCFCE7);
       case 1:
-        return const Color(0xFFFEF7E0);
+        return isDark ? const Color(0xFF78350F).withOpacity(0.4) : const Color(0xFFFEF3C7);
       case 2:
-        return const Color(0xFFFCE8E6);
+        return isDark ? const Color(0xFF7F1D1D).withOpacity(0.4) : const Color(0xFFFEE2E2);
       default:
-        return const Color(0xFFE6F4EA);
+        return isDark ? const Color(0xFF14532D).withOpacity(0.4) : const Color(0xFFDCFCE7);
+    }
+  }
+
+  Color _priorityBorderColor(BuildContext context) {
+    final isDark = AppTheme.isDark(context);
+    switch (priority) {
+      case 0:
+        return isDark ? const Color(0xFF22C55E) : const Color(0xFF16A34A);
+      case 1:
+        return isDark ? const Color(0xFFF59E0B) : const Color(0xFFD97706);
+      case 2:
+        return isDark ? const Color(0xFFEF4444) : const Color(0xFFDC2626);
+      default:
+        return isDark ? const Color(0xFF22C55E) : const Color(0xFF16A34A);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    final textColor = isSelected ? _priorityColor(context) : AppTheme.textSecondary(context);
+    final bgColor = isSelected ? _priorityBgColor(context) : AppTheme.tonal(context);
+    final borderColor = isSelected ? _priorityBorderColor(context) : AppTheme.surfaceBorder(context);
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? _priorityBgColor : AppTheme.tonal(context),
-          borderRadius: BorderRadius.circular(10),
+          color: bgColor,
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? _priorityColor : AppTheme.surfaceBorder(context),
+            color: borderColor,
             width: isSelected ? 1.5 : 1,
           ),
         ),
@@ -1006,9 +1129,9 @@ class _PriorityChip extends StatelessWidget {
           child: Text(
             label,
             style: GoogleFonts.plusJakartaSans(
-              color: isSelected ? _priorityColor : AppTheme.textSecondary(context),
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
+              color: textColor,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              fontSize: 13,
             ),
           ),
         ),
