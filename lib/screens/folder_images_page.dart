@@ -1531,6 +1531,32 @@ class _FolderImagesPageState extends State<FolderImagesPage>
     }
   }
 
+  /// Extract text from multiple selected image files via OCR
+  void _extractTextFromSelected() {
+    final imageFiles = _selectedFiles.where((f) => f.type == FileType.image).toList();
+    if (imageFiles.isEmpty) {
+      Fluttertoast.showToast(
+        msg: "Please select image files to extract text.",
+        backgroundColor: Colors.amber.shade800,
+      );
+      return;
+    }
+    final paths = imageFiles.map((f) => f.path).toList();
+    setState(() {
+      _selectedFiles.clear();
+      _multiSelectMode = false;
+    });
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TextExtractionScreen(
+          initialImagePaths: paths,
+          autoExtractTitle: '${widget.folder.name} (OCR)',
+        ),
+      ),
+    );
+  }
+
   /// Create PDF from currently selected files (handling both images and existing PDFs)
   Future<void> _createPdfFromSelected() async {
     if (_selectedFiles.isEmpty) return;
@@ -2130,6 +2156,11 @@ class _FolderImagesPageState extends State<FolderImagesPage>
                                   });
                                 },
                                 tooltip: 'Cancel',
+                              ),
+                              _buildAppBarAction(
+                                icon: Icons.document_scanner_rounded,
+                                onPressed: _extractTextFromSelected,
+                                tooltip: 'Extract Text (OCR)',
                               ),
                               _buildAppBarAction(
                                 icon: Icons.picture_as_pdf_rounded,

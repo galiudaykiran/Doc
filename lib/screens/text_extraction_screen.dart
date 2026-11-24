@@ -18,6 +18,8 @@ import 'package:gallery_app/theme/app_theme.dart';
 import 'package:gallery_app/widgets/folder_picker_dialog.dart';
 import 'package:gallery_app/widgets/optimized_image.dart';
 import 'package:gallery_app/models/quick_note_item.dart';
+import 'package:gallery_app/models/notes.dart';
+import 'package:gallery_app/services/recent_activity_service.dart';
 
 enum EditorViewMode {
   editorOnly,
@@ -126,25 +128,45 @@ class _TextExtractionScreenState extends State<TextExtractionScreen> {
     }
   }
 
-  Future<void> _scanDocument() async {
+  Future<void> _scanDocument({bool append = false}) async {
     setState(() {
       _isLoading = true;
-      _statusMessage = 'Launching document scanner...';
+      _statusMessage = append ? 'Scanning additional pages...' : 'Launching document scanner...';
     });
     try {
       final result = await _service.scanAndExtract();
       if (!mounted) return;
       if (result != null && result.imagePaths.isNotEmpty) {
-        setState(() {
-          _imagePaths = result.imagePaths;
-          _selectedPreviewIndex = 0;
-          _textController.text = result.text;
-          _isLoading = false;
-        });
-        if (result.text.isEmpty) {
-          Fluttertoast.showToast(msg: "No text detected in scanned pages.", backgroundColor: Colors.amber.shade800);
+        if (append && _imagePaths.isNotEmpty) {
+          final int startPage = _imagePaths.length + 1;
+          final updatedPaths = List<String>.from(_imagePaths)..addAll(result.imagePaths);
+          final buffer = StringBuffer(_textController.text.trim());
+          if (result.text.isNotEmpty) {
+            if (buffer.isNotEmpty) buffer.writeln('\n\n--- Page $startPage ---');
+            buffer.writeln(result.text);
+          }
+          setState(() {
+            _imagePaths = updatedPaths;
+            _selectedPreviewIndex = _imagePaths.length - result.imagePaths.length;
+            _textController.text = buffer.toString().trim();
+            _isLoading = false;
+          });
+          Fluttertoast.showToast(
+            msg: "Added ${result.imagePaths.length} scanned page(s) to document!",
+            backgroundColor: const Color(0xFF10B981),
+          );
         } else {
-          Fluttertoast.showToast(msg: "Text extracted successfully!", backgroundColor: const Color(0xFF10B981));
+          setState(() {
+            _imagePaths = result.imagePaths;
+            _selectedPreviewIndex = 0;
+            _textController.text = result.text;
+            _isLoading = false;
+          });
+          if (result.text.isEmpty) {
+            Fluttertoast.showToast(msg: "No text detected in scanned pages.", backgroundColor: Colors.amber.shade800);
+          } else {
+            Fluttertoast.showToast(msg: "Text extracted successfully!", backgroundColor: const Color(0xFF10B981));
+          }
         }
       } else {
         setState(() => _isLoading = false);
@@ -157,25 +179,45 @@ class _TextExtractionScreenState extends State<TextExtractionScreen> {
     }
   }
 
-  Future<void> _pickFromGallery() async {
+  Future<void> _pickFromGallery({bool append = false}) async {
     setState(() {
       _isLoading = true;
-      _statusMessage = 'Selecting image from gallery...';
+      _statusMessage = append ? 'Selecting more images from gallery...' : 'Selecting images from gallery...';
     });
     try {
       final result = await _service.pickFromGalleryAndExtract();
       if (!mounted) return;
       if (result != null && result.imagePaths.isNotEmpty) {
-        setState(() {
-          _imagePaths = result.imagePaths;
-          _selectedPreviewIndex = 0;
-          _textController.text = result.text;
-          _isLoading = false;
-        });
-        if (result.text.isEmpty) {
-          Fluttertoast.showToast(msg: "No text detected in selected image.", backgroundColor: Colors.amber.shade800);
+        if (append && _imagePaths.isNotEmpty) {
+          final int startPage = _imagePaths.length + 1;
+          final updatedPaths = List<String>.from(_imagePaths)..addAll(result.imagePaths);
+          final buffer = StringBuffer(_textController.text.trim());
+          if (result.text.isNotEmpty) {
+            if (buffer.isNotEmpty) buffer.writeln('\n\n--- Page $startPage ---');
+            buffer.writeln(result.text);
+          }
+          setState(() {
+            _imagePaths = updatedPaths;
+            _selectedPreviewIndex = _imagePaths.length - result.imagePaths.length;
+            _textController.text = buffer.toString().trim();
+            _isLoading = false;
+          });
+          Fluttertoast.showToast(
+            msg: "Added ${result.imagePaths.length} image(s) to document!",
+            backgroundColor: const Color(0xFF10B981),
+          );
         } else {
-          Fluttertoast.showToast(msg: "Text extracted successfully!", backgroundColor: const Color(0xFF10B981));
+          setState(() {
+            _imagePaths = result.imagePaths;
+            _selectedPreviewIndex = 0;
+            _textController.text = result.text;
+            _isLoading = false;
+          });
+          if (result.text.isEmpty) {
+            Fluttertoast.showToast(msg: "No text detected in selected image.", backgroundColor: Colors.amber.shade800);
+          } else {
+            Fluttertoast.showToast(msg: "Text extracted successfully!", backgroundColor: const Color(0xFF10B981));
+          }
         }
       } else {
         setState(() => _isLoading = false);
@@ -188,7 +230,7 @@ class _TextExtractionScreenState extends State<TextExtractionScreen> {
     }
   }
 
-  Future<void> _capturePhoto() async {
+  Future<void> _capturePhoto({bool append = false}) async {
     setState(() {
       _isLoading = true;
       _statusMessage = 'Opening camera...';
@@ -197,16 +239,36 @@ class _TextExtractionScreenState extends State<TextExtractionScreen> {
       final result = await _service.capturePhotoAndExtract();
       if (!mounted) return;
       if (result != null && result.imagePaths.isNotEmpty) {
-        setState(() {
-          _imagePaths = result.imagePaths;
-          _selectedPreviewIndex = 0;
-          _textController.text = result.text;
-          _isLoading = false;
-        });
-        if (result.text.isEmpty) {
-          Fluttertoast.showToast(msg: "No text detected in photo.", backgroundColor: Colors.amber.shade800);
+        if (append && _imagePaths.isNotEmpty) {
+          final int startPage = _imagePaths.length + 1;
+          final updatedPaths = List<String>.from(_imagePaths)..addAll(result.imagePaths);
+          final buffer = StringBuffer(_textController.text.trim());
+          if (result.text.isNotEmpty) {
+            if (buffer.isNotEmpty) buffer.writeln('\n\n--- Page $startPage ---');
+            buffer.writeln(result.text);
+          }
+          setState(() {
+            _imagePaths = updatedPaths;
+            _selectedPreviewIndex = _imagePaths.length - 1;
+            _textController.text = buffer.toString().trim();
+            _isLoading = false;
+          });
+          Fluttertoast.showToast(
+            msg: "Photo page added to document!",
+            backgroundColor: const Color(0xFF10B981),
+          );
         } else {
-          Fluttertoast.showToast(msg: "Text extracted successfully!", backgroundColor: const Color(0xFF10B981));
+          setState(() {
+            _imagePaths = result.imagePaths;
+            _selectedPreviewIndex = 0;
+            _textController.text = result.text;
+            _isLoading = false;
+          });
+          if (result.text.isEmpty) {
+            Fluttertoast.showToast(msg: "No text detected in photo.", backgroundColor: Colors.amber.shade800);
+          } else {
+            Fluttertoast.showToast(msg: "Text extracted successfully!", backgroundColor: const Color(0xFF10B981));
+          }
         }
       } else {
         setState(() => _isLoading = false);
@@ -312,17 +374,43 @@ class _TextExtractionScreenState extends State<TextExtractionScreen> {
           ? _titleController.text.trim()
           : 'Scanned Document';
 
+      final noteId = const Uuid().v4();
+      final snippet = text.length > 200 ? text.substring(0, 200) : text;
+
       final newNote = QuickNoteItem(
-        id: const Uuid().v4(),
+        id: noteId,
         title: docTitle,
         category: 'Scanned',
-        contentSnippet: text.length > 150 ? text.substring(0, 150) : text,
+        contentSnippet: snippet,
         lastUpdated: DateTime.now(),
         isPinned: false,
       );
 
+      // 1. Save metadata in Quick Notes list
       list.insert(0, newNote);
       await prefs.setString(prefKey, jsonEncode(list.map((e) => e.toMap()).toList()));
+
+      // 2. Save full note content to folder_notes_$noteId for NotesPage
+      final delta = [
+        {"insert": "$text\n"}
+      ];
+      final folderNote = FolderNotes(
+        folderPath: noteId,
+        notesContent: jsonEncode(delta),
+        lastEdited: DateTime.now(),
+      );
+      await prefs.setString(
+        'folder_notes_$noteId',
+        jsonEncode(folderNote.toMap()),
+      );
+
+      // 3. Record recent activity
+      await RecentActivityService.recordActivity(
+        title: docTitle,
+        subtitle: 'Scanned Note (OCR)',
+        type: 'note',
+        targetPath: noteId,
+      );
 
       HapticFeedback.lightImpact();
       Fluttertoast.showToast(
@@ -449,133 +537,142 @@ class _TextExtractionScreenState extends State<TextExtractionScreen> {
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-        decoration: BoxDecoration(
-          color: AppTheme.surface(context),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          border: Border.all(color: AppTheme.surfaceBorder(context)),
+      builder: (ctx) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(ctx).size.height * 0.85,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceBorder(context),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            Row(
+        child: Container(
+          padding: EdgeInsets.fromLTRB(20, 16, 20, 24 + MediaQuery.of(ctx).padding.bottom),
+          decoration: BoxDecoration(
+            color: AppTheme.surface(context),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border.all(color: AppTheme.surfaceBorder(context)),
+          ),
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEA4335).withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.picture_as_pdf_rounded, color: Color(0xFFEA4335), size: 24),
-                ),
-                const SizedBox(width: 14),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Export Extracted Text as PDF',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textPrimary(context),
-                      ),
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: AppTheme.surfaceBorder(context),
+                      borderRadius: BorderRadius.circular(2),
                     ),
-                    Text(
-                      'Generate, save, or custom format',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12,
-                        color: AppTheme.textSecondary(context),
+                  ),
+                ),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEA4335).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(12),
                       ),
+                      child: const Icon(Icons.picture_as_pdf_rounded, color: Color(0xFFEA4335), size: 24),
+                    ),
+                    const SizedBox(width: 14),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Export Extracted Text as PDF',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.textPrimary(context),
+                          ),
+                        ),
+                        Text(
+                          'Generate, save, or custom format',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            color: AppTheme.textSecondary(context),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
+                const SizedBox(height: 20),
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  tileColor: AppTheme.tonal(context),
+                  leading: const Icon(Icons.flash_on_rounded, color: Color(0xFFF59E0B)),
+                  title: Text(
+                    'Quick PDF & Share',
+                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                  subtitle: Text(
+                    'Generate standard A4 document and open share sheet',
+                    style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppTheme.textSecondary(context)),
+                  ),
+                  trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _generateQuickPdfAndShare();
+                  },
+                ),
+                const SizedBox(height: 10),
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  tileColor: AppTheme.tonal(context),
+                  leading: Icon(Icons.folder_open_rounded, color: AppTheme.primary(context)),
+                  title: Text(
+                    'Save PDF to App Folder',
+                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                  subtitle: Text(
+                    'Save directly into one of your Document Hub folders',
+                    style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppTheme.textSecondary(context)),
+                  ),
+                  trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _savePdfToFolder();
+                  },
+                ),
+                const SizedBox(height: 10),
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  tileColor: AppTheme.tonal(context),
+                  leading: const Icon(Icons.tune_rounded, color: Color(0xFF34A853)),
+                  title: Text(
+                    'Advanced PDF Editor & Formatter',
+                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                  subtitle: Text(
+                    'Customise fonts, alignments, margins, headers & footers',
+                    style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppTheme.textSecondary(context)),
+                  ),
+                  trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => TextToPdfScreen(
+                          initialText: _textController.text,
+                          initialTitle: _titleController.text.trim().isNotEmpty
+                              ? _titleController.text.trim()
+                              : (widget.autoExtractTitle ?? 'Extracted Document'),
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
-            const SizedBox(height: 20),
-            ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              tileColor: AppTheme.tonal(context),
-              leading: const Icon(Icons.flash_on_rounded, color: Color(0xFFF59E0B)),
-              title: Text(
-                'Quick PDF & Share',
-                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 14),
-              ),
-              subtitle: Text(
-                'Generate standard A4 document and open share sheet',
-                style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppTheme.textSecondary(context)),
-              ),
-              trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
-              onTap: () {
-                Navigator.pop(ctx);
-                _generateQuickPdfAndShare();
-              },
-            ),
-            const SizedBox(height: 10),
-            ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              tileColor: AppTheme.tonal(context),
-              leading: Icon(Icons.folder_open_rounded, color: AppTheme.primary(context)),
-              title: Text(
-                'Save PDF to App Folder',
-                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 14),
-              ),
-              subtitle: Text(
-                'Save directly into one of your Document Hub folders',
-                style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppTheme.textSecondary(context)),
-              ),
-              trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
-              onTap: () {
-                Navigator.pop(ctx);
-                _savePdfToFolder();
-              },
-            ),
-            const SizedBox(height: 10),
-            ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              tileColor: AppTheme.tonal(context),
-              leading: const Icon(Icons.tune_rounded, color: Color(0xFF34A853)),
-              title: Text(
-                'Advanced PDF Editor & Formatter',
-                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 14),
-              ),
-              subtitle: Text(
-                'Customise fonts, alignments, margins, headers & footers',
-                style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppTheme.textSecondary(context)),
-              ),
-              trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
-              onTap: () {
-                Navigator.pop(ctx);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => TextToPdfScreen(
-                      initialText: _textController.text,
-                      initialTitle: _titleController.text.trim().isNotEmpty
-                          ? _titleController.text.trim()
-                          : (widget.autoExtractTitle ?? 'Extracted Document'),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -699,82 +796,108 @@ class _TextExtractionScreenState extends State<TextExtractionScreen> {
     }
   }
 
-  void _showImageSourceChooser() {
+  void _showImageSourceChooser({bool isAppending = false}) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-        decoration: BoxDecoration(
-          color: AppTheme.surface(context),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          border: Border.all(color: AppTheme.surfaceBorder(context)),
+      builder: (ctx) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(ctx).size.height * 0.85,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceBorder(context),
-                  borderRadius: BorderRadius.circular(2),
+        child: Container(
+          padding: EdgeInsets.fromLTRB(20, 16, 20, 24 + MediaQuery.of(ctx).padding.bottom),
+          decoration: BoxDecoration(
+            color: AppTheme.surface(context),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border.all(color: AppTheme.surfaceBorder(context)),
+          ),
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: AppTheme.surfaceBorder(context),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
                 ),
-              ),
+                Text(
+                  isAppending
+                      ? 'Add Pages to Document (Multi-Page OCR)'
+                      : 'Select Images for Text Extraction',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary(context),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  isAppending
+                      ? 'New text and pages will be appended to your current document'
+                      : 'Scan documents, pick multiple photos from gallery, or snap a photo',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    color: AppTheme.textSecondary(context),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _buildSourceOption(
+                  icon: Icons.document_scanner_rounded,
+                  color: AppTheme.primary(context),
+                  title: isAppending ? 'Scan More Pages' : 'Scan Document (Auto-Crop Multi-Page)',
+                  subtitle: 'Camera scanner with perspective correction & auto-detect',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _scanDocument(append: isAppending);
+                  },
+                ),
+                const SizedBox(height: 10),
+                _buildSourceOption(
+                  icon: Icons.photo_library_rounded,
+                  color: const Color(0xFF34A853),
+                  title: isAppending ? 'Add Multiple Images from Gallery' : 'Choose Multiple from Gallery',
+                  subtitle: 'Select one or more photos, screenshots, or receipts',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickFromGallery(append: isAppending);
+                  },
+                ),
+                const SizedBox(height: 10),
+                _buildSourceOption(
+                  icon: Icons.camera_alt_rounded,
+                  color: const Color(0xFF4285F4),
+                  title: isAppending ? 'Take Photo to Append' : 'Take Quick Photo',
+                  subtitle: 'Snap a direct picture using device camera',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _capturePhoto(append: isAppending);
+                  },
+                ),
+                if (!isAppending && _imagePaths.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  _buildSourceOption(
+                    icon: Icons.add_circle_outline_rounded,
+                    color: const Color(0xFF8B5CF6),
+                    title: 'Append Pages (Keep Current Text)',
+                    subtitle: 'Add additional pages without overwriting current work',
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _showImageSourceChooser(isAppending: true);
+                    },
+                  ),
+                ],
+              ],
             ),
-            Text(
-              'Select Image for Text Extraction',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.textPrimary(context),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Capture, scan, or pick from your device gallery',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 13,
-                color: AppTheme.textSecondary(context),
-              ),
-            ),
-            const SizedBox(height: 20),
-            _buildSourceOption(
-              icon: Icons.document_scanner_rounded,
-              color: AppTheme.primary(context),
-              title: 'Scan Document (Auto-Crop)',
-              subtitle: 'Multi-page scanner with perspective correction',
-              onTap: () {
-                Navigator.pop(ctx);
-                _scanDocument();
-              },
-            ),
-            const SizedBox(height: 10),
-            _buildSourceOption(
-              icon: Icons.photo_library_rounded,
-              color: const Color(0xFF34A853),
-              title: 'Choose from Gallery',
-              subtitle: 'Pick existing photos, screenshots, or receipts',
-              onTap: () {
-                Navigator.pop(ctx);
-                _pickFromGallery();
-              },
-            ),
-            const SizedBox(height: 10),
-            _buildSourceOption(
-              icon: Icons.camera_alt_rounded,
-              color: const Color(0xFF4285F4),
-              title: 'Take Quick Photo',
-              subtitle: 'Snap a direct picture using device camera',
-              onTap: () {
-                Navigator.pop(ctx);
-                _capturePhoto();
-              },
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -1026,6 +1149,15 @@ class _TextExtractionScreenState extends State<TextExtractionScreen> {
             ),
           ),
           const SizedBox(width: 8),
+
+          // Add Page action chip
+          _buildRibbonActionChip(
+            icon: Icons.add_photo_alternate_rounded,
+            label: '+ Add Page',
+            color: const Color(0xFF6366F1),
+            onTap: () => _showImageSourceChooser(isAppending: true),
+          ),
+          const SizedBox(width: 8),
           _buildStatPill(Icons.sort_by_alpha_rounded, '$_wordCount words'),
           const SizedBox(width: 8),
           _buildStatPill(Icons.text_fields_rounded, '$_charCount chars'),
@@ -1158,67 +1290,142 @@ class _TextExtractionScreenState extends State<TextExtractionScreen> {
     );
   }
 
-  // ─── Split Image Viewer (Top half in Split View mode) ───
+  // ─── Split Image Viewer (Top half in Split View mode with Multi-Page Strip) ───
   Widget _buildSplitImageViewer() {
     final imagePath = _imagePaths[_selectedPreviewIndex];
     return Container(
-      height: 180,
+      height: 220,
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.85),
+        color: Colors.black.withOpacity(0.92),
         border: Border(
           bottom: BorderSide(color: AppTheme.surfaceBorder(context)),
         ),
       ),
-      child: Stack(
-        fit: StackFit.expand,
+      child: Column(
         children: [
-          InteractiveViewer(
-            minScale: 0.8,
-            maxScale: 4.0,
-            child: File(imagePath).existsSync()
-                ? Image.file(File(imagePath), fit: BoxFit.contain)
-                : const Center(child: Text('Image not available', style: TextStyle(color: Colors.white70))),
-          ),
-          Positioned(
-            top: 8,
-            left: 10,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.65),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                'Page ${_selectedPreviewIndex + 1} of ${_imagePaths.length} (Pinch to zoom)',
-                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
-              ),
+          Expanded(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                InteractiveViewer(
+                  minScale: 0.8,
+                  maxScale: 4.0,
+                  child: File(imagePath).existsSync()
+                      ? Image.file(File(imagePath), fit: BoxFit.contain)
+                      : const Center(child: Text('Image not available', style: TextStyle(color: Colors.white70))),
+                ),
+                Positioned(
+                  top: 8,
+                  left: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.65),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Page ${_selectedPreviewIndex + 1} of ${_imagePaths.length} (Pinch to zoom)',
+                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+                if (_imagePaths.length > 1)
+                  Positioned(
+                    top: 8,
+                    right: 10,
+                    child: IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded, color: Colors.white70, size: 18),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.black54,
+                        padding: const EdgeInsets.all(6),
+                        minimumSize: const Size(30, 30),
+                      ),
+                      tooltip: 'Remove this page',
+                      onPressed: () {
+                        setState(() {
+                          _imagePaths.removeAt(_selectedPreviewIndex);
+                          if (_selectedPreviewIndex >= _imagePaths.length) {
+                            _selectedPreviewIndex = _imagePaths.length - 1;
+                          }
+                        });
+                        Fluttertoast.showToast(msg: "Page removed from preview");
+                      },
+                    ),
+                  ),
+              ],
             ),
           ),
-          if (_imagePaths.length > 1)
-            Positioned(
-              bottom: 8,
-              right: 10,
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size: 14),
-                    style: IconButton.styleFrom(backgroundColor: Colors.black54, padding: const EdgeInsets.all(6)),
-                    onPressed: _selectedPreviewIndex > 0
-                        ? () => setState(() => _selectedPreviewIndex--)
-                        : null,
+          // Multi-page thumbnail selector strip
+          Container(
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            color: Colors.black54,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _imagePaths.length + 1,
+              itemBuilder: (context, index) {
+                if (index == _imagePaths.length) {
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () => _showImageSourceChooser(isAppending: true),
+                    child: Container(
+                      width: 40,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white12,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white24),
+                      ),
+                      child: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
+                    ),
+                  );
+                }
+                final isSelected = index == _selectedPreviewIndex;
+                final thumbPath = _imagePaths[index];
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedPreviewIndex = index),
+                  child: Container(
+                    width: 38,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isSelected ? AppTheme.primary(context) : Colors.transparent,
+                        width: 2,
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          if (File(thumbPath).existsSync())
+                            Image.file(File(thumbPath), fit: BoxFit.cover)
+                          else
+                            const ColoredBox(color: Colors.grey),
+                          Container(
+                            color: Colors.black.withOpacity(isSelected ? 0.0 : 0.4),
+                          ),
+                          Center(
+                            child: Text(
+                              'P${index + 1}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 10,
+                                shadows: [Shadow(color: Colors.black, blurRadius: 2)],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  const SizedBox(width: 6),
-                  IconButton(
-                    icon: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 14),
-                    style: IconButton.styleFrom(backgroundColor: Colors.black54, padding: const EdgeInsets.all(6)),
-                    onPressed: _selectedPreviewIndex < _imagePaths.length - 1
-                        ? () => setState(() => _selectedPreviewIndex++)
-                        : null,
-                  ),
-                ],
-              ),
+                );
+              },
             ),
+          ),
         ],
       ),
     );

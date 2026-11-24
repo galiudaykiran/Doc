@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 
 import 'package:gallery_app/models/quick_note_item.dart';
+import 'package:gallery_app/models/notes.dart';
 import 'package:gallery_app/screens/notes_page.dart';
 import 'package:gallery_app/services/recent_activity_service.dart';
 import 'package:gallery_app/theme/app_theme.dart';
@@ -319,6 +320,26 @@ class _QuickNotesScreenState extends State<QuickNotesScreen> {
   }
 
   Future<void> _openNoteEditor(QuickNoteItem note) async {
+    final prefs = await SharedPreferences.getInstance();
+    final noteKey = 'folder_notes_${note.id}';
+    final existingData = prefs.getString(noteKey);
+    if (existingData == null) {
+      // If note content was not yet initialized in folder_notes_${note.id},
+      // initialize it from contentSnippet so NotesPage displays the content immediately!
+      final snippet = note.contentSnippet.trim();
+      final hasRealContent = snippet.isNotEmpty && snippet != 'Tap to start writing your notes...';
+      final initialText = hasRealContent ? snippet : '';
+      final delta = [
+        {"insert": "$initialText\n"}
+      ];
+      final newFolderNote = FolderNotes(
+        folderPath: note.id,
+        notesContent: jsonEncode(delta),
+        lastEdited: DateTime.now(),
+      );
+      await prefs.setString(noteKey, jsonEncode(newFolderNote.toMap()));
+    }
+
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -327,7 +348,6 @@ class _QuickNotesScreenState extends State<QuickNotesScreen> {
     );
 
     // Refresh snippet after returning from editor
-    final prefs = await SharedPreferences.getInstance();
     final rawNote = prefs.getString('folder_notes_${note.id}');
     if (rawNote != null) {
       try {
@@ -379,32 +399,38 @@ class _QuickNotesScreenState extends State<QuickNotesScreen> {
   }
 
   Color _getCategoryColor(String cat, BuildContext context) {
+    final isDark = AppTheme.isDark(context);
     switch (cat.toLowerCase()) {
+      case 'scanned':
+        return isDark ? const Color(0xFF2E2D64) : const Color(0xFFEDE7F6);
       case 'personal':
-        return const Color(0xFFE8DEF8); // Soft Lavender
+        return isDark ? const Color(0xFF3C2D4D) : const Color(0xFFE8DEF8); // Soft Lavender
       case 'finance':
-        return const Color(0xFFC2E7FF); // Soft Sky
+        return isDark ? const Color(0xFF1B3B52) : const Color(0xFFC2E7FF); // Soft Sky
       case 'work':
-        return const Color(0xFFD3E3FD); // Soft Blue
+        return isDark ? const Color(0xFF1C345C) : const Color(0xFFD3E3FD); // Soft Blue
       case 'ideas':
-        return const Color(0xFFCEEAD6); // Soft Mint
+        return isDark ? const Color(0xFF1B3D28) : const Color(0xFFCEEAD6); // Soft Mint
       default:
         return AppTheme.tonal(context);
     }
   }
 
-  Color _getCategoryTextColor(String cat) {
+  Color _getCategoryTextColor(String cat, BuildContext context) {
+    final isDark = AppTheme.isDark(context);
     switch (cat.toLowerCase()) {
+      case 'scanned':
+        return isDark ? const Color(0xFFC7D2FE) : const Color(0xFF4338CA);
       case 'personal':
-        return const Color(0xFF1D192B);
+        return isDark ? const Color(0xFFE8DEF8) : const Color(0xFF1D192B);
       case 'finance':
-        return const Color(0xFF001D35);
+        return isDark ? const Color(0xFFC2E7FF) : const Color(0xFF001D35);
       case 'work':
-        return const Color(0xFF041E49);
+        return isDark ? const Color(0xFFD3E3FD) : const Color(0xFF041E49);
       case 'ideas':
-        return const Color(0xFF0D652D);
+        return isDark ? const Color(0xFFCEEAD6) : const Color(0xFF0D652D);
       default:
-        return const Color(0xFF1F1F1F);
+        return AppTheme.textPrimary(context);
     }
   }
 
@@ -564,7 +590,7 @@ class _QuickNotesScreenState extends State<QuickNotesScreen> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: _getCategoryTextColor(note.category),
+                          color: _getCategoryTextColor(note.category, context),
                         ),
                       ),
                     ),

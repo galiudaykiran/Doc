@@ -211,7 +211,11 @@ class _NotesPageState extends State<NotesPage> {
         // Try parsing as Delta (JSON)
         try {
           final deltaJson = jsonDecode(content);
-          _quillController.document = quill.Document.fromJson(deltaJson);
+          if (deltaJson is List) {
+            _quillController.document = quill.Document.fromJson(deltaJson);
+          } else {
+            _quillController.document = quill.Document()..insert(0, content);
+          }
         } catch (e) {
           // If not JSON, it's old plain text notes
           _quillController.document = quill.Document()..insert(0, content);
