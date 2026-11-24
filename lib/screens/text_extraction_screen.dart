@@ -1,18 +1,28 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 
 import 'package:gallery_app/services/text_extraction_service.dart';
 import 'package:gallery_app/screens/text_to_pdf_screen.dart';
 import 'package:gallery_app/theme/app_theme.dart';
 import 'package:gallery_app/widgets/folder_picker_dialog.dart';
 import 'package:gallery_app/widgets/optimized_image.dart';
+import 'package:gallery_app/models/quick_note_item.dart';
+
+enum EditorViewMode {
+  editorOnly,
+  splitView,
+}
 
 class TextExtractionScreen extends StatefulWidget {
   final String? initialImagePath;
@@ -33,19 +43,22 @@ class TextExtractionScreen extends StatefulWidget {
 class _TextExtractionScreenState extends State<TextExtractionScreen> {
   final TextExtractionService _service = TextExtractionService();
   final TextEditingController _textController = TextEditingController();
+  final TextEditingController _titleController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
+  final FlutterTts _flutterTts = FlutterTts();
 
   List<String> _imagePaths = [];
   bool _isLoading = false;
   String _statusMessage = '';
-  bool _showPreview = true;
   int _selectedPreviewIndex = 0;
   double _fontSize = 15.0;
-  bool _isFullScreenEditor = false;
+  EditorViewMode _viewMode = EditorViewMode.editorOnly;
+  bool _isPlayingTts = false;
 
   @override
   void initState() {
     super.initState();
+    _titleController.text = widget.autoExtractTitle ?? 'Extracted Document';
     if (widget.initialImagePaths != null && widget.initialImagePaths!.isNotEmpty) {
       _imagePaths = List.from(widget.initialImagePaths!);
       _processImages(_imagePaths);
@@ -53,12 +66,18 @@ class _TextExtractionScreenState extends State<TextExtractionScreen> {
       _imagePaths = [widget.initialImagePath!];
       _processImages(_imagePaths);
     }
+
+    _flutterTts.setCompletionHandler(() {
+      if (mounted) setState(() => _isPlayingTts = false);
+    });
   }
 
   @override
   void dispose() {
     _textController.dispose();
+    _titleController.dispose();
     _focusNode.dispose();
+    _flutterTts.stop();
     super.dispose();
   }
 
@@ -221,9 +240,164 @@ class _TextExtractionScreenState extends State<TextExtractionScreen> {
       return;
     }
     HapticFeedback.lightImpact();
+    final docTitle = _titleController.text.trim().isNotEmpty
+        ? _titleController.text.trim()
+        : 'Extracted Document';
     Share.share(
       text,
-      subject: widget.autoExtractTitle ?? 'Extracted Text from Document',
+      subject: docTitle,
+    );
+  }
+
+  // 🧹 Clean broken OCR line-breaks and whitespace
+  void _cleanTextSpacing() {
+    String t = _textController.text;
+    if (t.trim().isEmpty) return;
+
+    // Replace 3+ consecutive newlines with 2
+    t = t.replaceAll(RegExp(r'\n{3,}'), '\n\n');
+    // Fix broken sentence lines where OCR inserted newlines mid-sentence
+    t = t.replaceAllMapped(RegExp(r'([a-z,])\n([a-z])'), (m) => '${m[1]} ${m[2]}');
+    // Trim trailing whitespace from each line
+    final lines = t.split('\n').map((l) => l.trimRight()).toList();
+    t = lines.join('\n').trim();
+
+    setState(() {
+      _textController.text = t;
+    });
+    HapticFeedback.lightImpact();
+    Fluttertoast.showToast(
+      msg: "Text spacing cleaned!",
+      backgroundColor: const Color(0xFF10B981),
+    );
+  }
+
+  // 🔊 Toggle Text to Speech
+  Future<void> _toggleTts() async {
+    if (_isPlayingTts) {
+      await _flutterTts.stop();
+      setState(() => _isPlayingTts = false);
+    } else {
+      final text = _textController.text.trim();
+      if (text.isEmpty) {
+        Fluttertoast.showToast(msg: "No text to read");
+        return;
+      }
+      setState(() => _isPlayingTts = true);
+      await _flutterTts.speak(text);
+    }
+  }
+
+  // 📝 Save directly as a Quick Note
+  Future<void> _saveAsQuickNote() async {
+    final text = _textController.text.trim();
+    if (text.isEmpty) {
+      Fluttertoast.showToast(msg: "No text to save as note");
+      return;
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      const prefKey = 'hub_quick_notes_list_v1';
+      final raw = prefs.getString(prefKey);
+      List<QuickNoteItem> list = [];
+      if (raw != null) {
+        try {
+          final List decoded = jsonDecode(raw);
+          list = decoded.map((e) => QuickNoteItem.fromMap(e)).toList();
+        } catch (_) {}
+      }
+
+      final docTitle = _titleController.text.trim().isNotEmpty
+          ? _titleController.text.trim()
+          : 'Scanned Document';
+
+      final newNote = QuickNoteItem(
+        id: const Uuid().v4(),
+        title: docTitle,
+        category: 'Scanned',
+        contentSnippet: text.length > 150 ? text.substring(0, 150) : text,
+        lastUpdated: DateTime.now(),
+        isPinned: false,
+      );
+
+      list.insert(0, newNote);
+      await prefs.setString(prefKey, jsonEncode(list.map((e) => e.toMap()).toList()));
+
+      HapticFeedback.lightImpact();
+      Fluttertoast.showToast(
+        msg: "Saved to Notes successfully!",
+        backgroundColor: const Color(0xFF10B981),
+      );
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Failed to save note: $e", backgroundColor: Colors.red);
+    }
+  }
+
+  // 🔍 Find & Replace Dialog
+  void _showFindAndReplaceDialog() {
+    final findController = TextEditingController();
+    final replaceController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surface(context),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Row(
+          children: [
+            Icon(Icons.find_replace_rounded, color: AppTheme.primary(context)),
+            const SizedBox(width: 8),
+            Text(
+              'Find & Replace',
+              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: findController,
+              decoration: InputDecoration(
+                labelText: 'Find text',
+                filled: true,
+                fillColor: AppTheme.tonal(context),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: replaceController,
+              decoration: InputDecoration(
+                labelText: 'Replace with',
+                filled: true,
+                fillColor: AppTheme.tonal(context),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final findText = findController.text;
+              if (findText.isNotEmpty) {
+                final original = _textController.text;
+                final updated = original.replaceAll(findText, replaceController.text);
+                setState(() => _textController.text = updated);
+                Navigator.pop(ctx);
+                Fluttertoast.showToast(msg: "Occurrences replaced!");
+              }
+            },
+            child: const Text('Replace All'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -393,7 +567,9 @@ class _TextExtractionScreenState extends State<TextExtractionScreen> {
                   MaterialPageRoute(
                     builder: (context) => TextToPdfScreen(
                       initialText: _textController.text,
-                      initialTitle: widget.autoExtractTitle ?? 'Extracted Document',
+                      initialTitle: _titleController.text.trim().isNotEmpty
+                          ? _titleController.text.trim()
+                          : (widget.autoExtractTitle ?? 'Extracted Document'),
                     ),
                   ),
                 );
@@ -408,7 +584,9 @@ class _TextExtractionScreenState extends State<TextExtractionScreen> {
   Future<String?> _buildPdfFile() async {
     final pdf = pw.Document();
     final text = _textController.text.trim();
-    final title = widget.autoExtractTitle ?? 'Extracted Text Document';
+    final title = _titleController.text.trim().isNotEmpty
+        ? _titleController.text.trim()
+        : (widget.autoExtractTitle ?? 'Extracted Text Document');
     final dateStr = DateTime.now().toLocal().toString().split('.').first;
 
     pdf.addPage(
@@ -651,7 +829,7 @@ class _TextExtractionScreenState extends State<TextExtractionScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Text Extractor (OCR)',
+          'Text Studio (OCR)',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 18,
             fontWeight: FontWeight.w700,
@@ -660,21 +838,78 @@ class _TextExtractionScreenState extends State<TextExtractionScreen> {
         ),
         actions: [
           if (_imagePaths.isNotEmpty) ...[
+            // Split view toggle button
             IconButton(
               icon: Icon(
-                _showPreview ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                color: AppTheme.textSecondary(context),
+                _viewMode == EditorViewMode.splitView
+                    ? Icons.vertical_split_rounded
+                    : Icons.vertical_split_outlined,
+                color: _viewMode == EditorViewMode.splitView
+                    ? AppTheme.primary(context)
+                    : AppTheme.textSecondary(context),
               ),
-              tooltip: _showPreview ? 'Hide Image Strip' : 'Show Image Strip',
-              onPressed: () => setState(() => _showPreview = !_showPreview),
+              tooltip: _viewMode == EditorViewMode.splitView ? 'Exit Split View' : 'Split View with Image',
+              onPressed: () {
+                setState(() {
+                  _viewMode = _viewMode == EditorViewMode.splitView
+                      ? EditorViewMode.editorOnly
+                      : EditorViewMode.splitView;
+                });
+              },
             ),
-            IconButton(
-              icon: Icon(
-                _isFullScreenEditor ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
-                color: AppTheme.textSecondary(context),
-              ),
-              tooltip: _isFullScreenEditor ? 'Exit Full Screen' : 'Full Screen Editor',
-              onPressed: () => setState(() => _isFullScreenEditor = !_isFullScreenEditor),
+            // Tools menu button
+            PopupMenuButton<String>(
+              icon: Icon(Icons.more_vert_rounded, color: AppTheme.textSecondary(context)),
+              tooltip: 'Text Tools',
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              onSelected: (val) {
+                if (val == 'clean') _cleanTextSpacing();
+                if (val == 'replace') _showFindAndReplaceDialog();
+                if (val == 'tts') _toggleTts();
+                if (val == 'note') _saveAsQuickNote();
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'clean',
+                  child: Row(
+                    children: [
+                      Icon(Icons.auto_fix_high_rounded, size: 20, color: Color(0xFF3B82F6)),
+                      SizedBox(width: 12),
+                      Text('Clean Spacing & Breaks'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'replace',
+                  child: Row(
+                    children: [
+                      Icon(Icons.find_replace_rounded, size: 20, color: Color(0xFF6366F1)),
+                      SizedBox(width: 12),
+                      Text('Find & Replace...'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'tts',
+                  child: Row(
+                    children: [
+                      Icon(_isPlayingTts ? Icons.stop_rounded : Icons.volume_up_rounded, size: 20, color: const Color(0xFF10B981)),
+                      const SizedBox(width: 12),
+                      Text(_isPlayingTts ? 'Stop Reading' : 'Read Aloud'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'note',
+                  child: Row(
+                    children: [
+                      Icon(Icons.note_add_rounded, size: 20, color: Color(0xFFF59E0B)),
+                      SizedBox(width: 12),
+                      Text('Save to Notes'),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
           IconButton(
@@ -688,196 +923,22 @@ class _TextExtractionScreenState extends State<TextExtractionScreen> {
         children: [
           Column(
             children: [
-              // Stats / Top Strip (Hidden in full screen mode for maximum canvas)
-              if (!_isFullScreenEditor)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AppTheme.surface(context),
-                    border: Border(
-                      bottom: BorderSide(color: AppTheme.surfaceBorder(context).withOpacity(0.6)),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      _buildStatPill(
-                        Icons.description_outlined,
-                        '${_imagePaths.length} ${_imagePaths.length == 1 ? "Page" : "Pages"}',
-                      ),
-                      const SizedBox(width: 8),
-                      _buildStatPill(Icons.sort_by_alpha_rounded, '$_wordCount words'),
-                      const SizedBox(width: 8),
-                      _buildStatPill(Icons.text_fields_rounded, '$_charCount chars'),
-                      const Spacer(),
-                      // Font size decrease/increase buttons
-                      InkWell(
-                        borderRadius: BorderRadius.circular(8),
-                        onTap: () {
-                          if (_fontSize > 12) setState(() => _fontSize -= 1.5);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppTheme.tonal(context),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text('A-', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      InkWell(
-                        borderRadius: BorderRadius.circular(8),
-                        onTap: () {
-                          if (_fontSize < 24) setState(() => _fontSize += 1.5);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppTheme.tonal(context),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text('A+', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-                        ),
-                      ),
-                      if (_textController.text.isNotEmpty) ...[
-                        const SizedBox(width: 12),
-                        GestureDetector(
-                          onTap: () {
-                            _textController.clear();
-                            setState(() {});
-                          },
-                          child: Text(
-                            'Clear',
-                            style: GoogleFonts.plusJakartaSans(
-                              color: Colors.redAccent,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
+              // Productivity Scrollable Ribbon (Guaranteed 0 overflow on all phone screens!)
+              if (_imagePaths.isNotEmpty)
+                _buildProductiveRibbon(),
 
-              // Image Preview Strip (Auto-collapses when keyboard is active to give 100% space to text!)
-              if (_imagePaths.isNotEmpty && _showPreview && !isKeyboardActive && !_isFullScreenEditor)
-                _buildImagePreviewSection(),
+              // Split View Image Preview (shown when Split View is enabled)
+              if (_imagePaths.isNotEmpty && _viewMode == EditorViewMode.splitView && !isKeyboardActive)
+                _buildSplitImageViewer(),
 
-              // Text Editor / Result Area
+              // Text Editor / Document Canvas Area
               Expanded(
                 child: _imagePaths.isEmpty
                     ? _buildEmptyState()
-                    : Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          _isFullScreenEditor ? 8 : 14,
-                          _isFullScreenEditor ? 8 : 10,
-                          _isFullScreenEditor ? 8 : 14,
-                          isKeyboardActive ? 4 : 10,
-                        ),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: AppTheme.isDark(context)
-                                ? const Color(0xFF1B1D24)
-                                : Colors.white,
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: _focusNode.hasFocus
-                                  ? AppTheme.primary(context).withOpacity(0.5)
-                                  : AppTheme.surfaceBorder(context),
-                              width: _focusNode.hasFocus ? 1.5 : 1,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(AppTheme.isDark(context) ? 0.35 : 0.05),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Top Bar inside Editor
-                              Row(
-                                children: [
-                                  Icon(Icons.edit_note_rounded, size: 20, color: AppTheme.primary(context)),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'Extracted Text',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13,
-                                      color: AppTheme.textPrimary(context),
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  if (isKeyboardActive)
-                                    GestureDetector(
-                                      onTap: () => FocusScope.of(context).unfocus(),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: AppTheme.primary(context).withOpacity(0.12),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(Icons.keyboard_hide_rounded, size: 14, color: AppTheme.primary(context)),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              'Done',
-                                              style: GoogleFonts.plusJakartaSans(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.bold,
-                                                color: AppTheme.primary(context),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              const Divider(height: 16),
-                              Expanded(
-                                child: TextField(
-                                  controller: _textController,
-                                  focusNode: _focusNode,
-                                  maxLines: null,
-                                  expands: true,
-                                  textAlignVertical: TextAlignVertical.top,
-                                  onChanged: (_) => setState(() {}),
-                                  cursorColor: AppTheme.primary(context),
-                                  cursorWidth: 2.2,
-                                  cursorRadius: const Radius.circular(2),
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: _fontSize,
-                                    height: 1.65,
-                                    fontWeight: FontWeight.w400,
-                                    color: AppTheme.textPrimary(context),
-                                    letterSpacing: 0.15,
-                                  ),
-                                  decoration: InputDecoration(
-                                    hintText: 'Extracted text will appear here. Tap to edit freely...',
-                                    hintStyle: GoogleFonts.plusJakartaSans(
-                                      fontSize: _fontSize,
-                                      color: AppTheme.textMuted(context),
-                                    ),
-                                    border: InputBorder.none,
-                                    contentPadding: EdgeInsets.zero,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                    : _buildDocumentCanvas(isKeyboardActive),
               ),
 
-              // Bottom Action Bar or Sleek Keyboard Accessory Toolbar
+              // Bottom Actions Bar (or slim keyboard accessory bar)
               if (_imagePaths.isNotEmpty)
                 isKeyboardActive
                     ? _buildKeyboardAccessoryBar()
@@ -936,9 +997,111 @@ class _TextExtractionScreenState extends State<TextExtractionScreen> {
     );
   }
 
+  // ─── Scrollable Productivity Ribbon (Guaranteed 0 overflow) ───
+  Widget _buildProductiveRibbon() {
+    return Container(
+      height: 44,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: AppTheme.surface(context),
+        border: Border(
+          bottom: BorderSide(color: AppTheme.surfaceBorder(context).withOpacity(0.6)),
+        ),
+      ),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        children: [
+          // Pages count chip (clickable to view thumbnail)
+          GestureDetector(
+            onTap: () {
+              if (_imagePaths.isNotEmpty) {
+                _showZoomedImageDialog(_imagePaths[_selectedPreviewIndex]);
+              }
+            },
+            child: _buildStatPill(
+              Icons.description_outlined,
+              '${_imagePaths.length} ${_imagePaths.length == 1 ? "Page" : "Pages"} (tap to view)',
+            ),
+          ),
+          const SizedBox(width: 8),
+          _buildStatPill(Icons.sort_by_alpha_rounded, '$_wordCount words'),
+          const SizedBox(width: 8),
+          _buildStatPill(Icons.text_fields_rounded, '$_charCount chars'),
+          const SizedBox(width: 8),
+
+          // Font size decrement button
+          InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () {
+              if (_fontSize > 12) setState(() => _fontSize -= 1.5);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppTheme.tonal(context),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text('A-', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+            ),
+          ),
+          const SizedBox(width: 4),
+
+          // Font size increment button
+          InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () {
+              if (_fontSize < 24) setState(() => _fontSize += 1.5);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppTheme.tonal(context),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text('A+', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          // Clean spacing action
+          _buildRibbonActionChip(
+            icon: Icons.auto_fix_high_rounded,
+            label: 'Clean Breaks',
+            color: const Color(0xFF3B82F6),
+            onTap: _cleanTextSpacing,
+          ),
+          const SizedBox(width: 8),
+
+          // Read Aloud / TTS
+          _buildRibbonActionChip(
+            icon: _isPlayingTts ? Icons.stop_rounded : Icons.volume_up_rounded,
+            label: _isPlayingTts ? 'Stop' : 'Listen',
+            color: const Color(0xFF10B981),
+            onTap: _toggleTts,
+          ),
+          const SizedBox(width: 8),
+
+          // Clear button
+          if (_textController.text.isNotEmpty)
+            _buildRibbonActionChip(
+              icon: Icons.delete_outline_rounded,
+              label: 'Clear',
+              color: Colors.redAccent,
+              onTap: () {
+                _textController.clear();
+                setState(() {});
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStatPill(IconData icon, String label) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
         color: AppTheme.tonal(context),
         borderRadius: BorderRadius.circular(8),
@@ -961,71 +1124,224 @@ class _TextExtractionScreenState extends State<TextExtractionScreen> {
     );
   }
 
-  Widget _buildImagePreviewSection() {
-    return Container(
-      height: 105,
-      width: double.infinity,
-      color: AppTheme.tonal(context).withOpacity(0.6),
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _imagePaths.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (context, index) {
-          final isSelected = _selectedPreviewIndex == index;
-          final path = _imagePaths[index];
-          return GestureDetector(
-            onTap: () {
-              setState(() => _selectedPreviewIndex = index);
-              _showZoomedImageDialog(path);
-            },
-            child: Container(
-              width: 78,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isSelected ? AppTheme.primary(context) : AppTheme.surfaceBorder(context),
-                  width: isSelected ? 2.5 : 1,
-                ),
+  Widget _buildRibbonActionChip({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: color),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: color,
               ),
-              clipBehavior: Clip.antiAlias,
-              child: Stack(
-                fit: StackFit.expand,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── Split Image Viewer (Top half in Split View mode) ───
+  Widget _buildSplitImageViewer() {
+    final imagePath = _imagePaths[_selectedPreviewIndex];
+    return Container(
+      height: 180,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.85),
+        border: Border(
+          bottom: BorderSide(color: AppTheme.surfaceBorder(context)),
+        ),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          InteractiveViewer(
+            minScale: 0.8,
+            maxScale: 4.0,
+            child: File(imagePath).existsSync()
+                ? Image.file(File(imagePath), fit: BoxFit.contain)
+                : const Center(child: Text('Image not available', style: TextStyle(color: Colors.white70))),
+          ),
+          Positioned(
+            top: 8,
+            left: 10,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.65),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Page ${_selectedPreviewIndex + 1} of ${_imagePaths.length} (Pinch to zoom)',
+                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+          if (_imagePaths.length > 1)
+            Positioned(
+              bottom: 8,
+              right: 10,
+              child: Row(
                 children: [
-                  File(path).existsSync()
-                      ? OptimizedImage(path: path, fit: BoxFit.cover)
-                      : Container(color: Colors.grey.shade300),
-                  Positioned(
-                    bottom: 3,
-                    right: 3,
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size: 14),
+                    style: IconButton.styleFrom(backgroundColor: Colors.black54, padding: const EdgeInsets.all(6)),
+                    onPressed: _selectedPreviewIndex > 0
+                        ? () => setState(() => _selectedPreviewIndex--)
+                        : null,
+                  ),
+                  const SizedBox(width: 6),
+                  IconButton(
+                    icon: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 14),
+                    style: IconButton.styleFrom(backgroundColor: Colors.black54, padding: const EdgeInsets.all(6)),
+                    onPressed: _selectedPreviewIndex < _imagePaths.length - 1
+                        ? () => setState(() => _selectedPreviewIndex++)
+                        : null,
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ─── Document Canvas (The Clean, Productive Editor) ───
+  Widget _buildDocumentCanvas(bool isKeyboardActive) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(14, 10, 14, isKeyboardActive ? 4 : 10),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppTheme.isDark(context) ? const Color(0xFF1B1D24) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: AppTheme.surfaceBorder(context),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(AppTheme.isDark(context) ? 0.3 : 0.04),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Document Title Header Row
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _titleController,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: AppTheme.textPrimary(context),
+                      letterSpacing: -0.2,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Document Title...',
+                      hintStyle: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                        color: AppTheme.textMuted(context),
+                      ),
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                      border: InputBorder.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (isKeyboardActive)
+                  GestureDetector(
+                    onTap: () => FocusScope.of(context).unfocus(),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.7),
-                        borderRadius: BorderRadius.circular(6),
+                        color: AppTheme.primary(context).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.zoom_in_rounded, color: Colors.white, size: 10),
-                          const SizedBox(width: 2),
+                          Icon(Icons.keyboard_hide_rounded, size: 14, color: AppTheme.primary(context)),
+                          const SizedBox(width: 4),
                           Text(
-                            'P${index + 1}',
-                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                            'Done',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.primary(context),
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ),
-                ],
+              ],
+            ),
+            const SizedBox(height: 6),
+            Divider(height: 12, color: AppTheme.surfaceBorder(context).withOpacity(0.7)),
+
+            // Spacious Editable Text Area
+            Expanded(
+              child: TextField(
+                controller: _textController,
+                focusNode: _focusNode,
+                maxLines: null,
+                expands: true,
+                textAlignVertical: TextAlignVertical.top,
+                onChanged: (_) => setState(() {}),
+                cursorColor: AppTheme.primary(context),
+                cursorWidth: 2.2,
+                cursorRadius: const Radius.circular(2),
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: _fontSize,
+                  height: 1.65,
+                  fontWeight: FontWeight.w400,
+                  color: AppTheme.textPrimary(context),
+                  letterSpacing: 0.15,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Extracted text will appear here. Tap to edit freely...',
+                  hintStyle: GoogleFonts.plusJakartaSans(
+                    fontSize: _fontSize,
+                    color: AppTheme.textMuted(context),
+                  ),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.only(top: 8),
+                ),
               ),
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }
 
+  // ─── Empty State ───
   Widget _buildEmptyState() {
     return Center(
       child: SingleChildScrollView(
@@ -1091,10 +1407,10 @@ class _TextExtractionScreenState extends State<TextExtractionScreen> {
     );
   }
 
-  // Slim compact toolbar shown right above keyboard when typing
+  // ─── Slim Keyboard Accessory Toolbar ───
   Widget _buildKeyboardAccessoryBar() {
     return Container(
-      height: 48,
+      height: 46,
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
         color: AppTheme.surface(context),
@@ -1104,22 +1420,35 @@ class _TextExtractionScreenState extends State<TextExtractionScreen> {
       ),
       child: Row(
         children: [
-          // Word count pill
-          Text(
-            '$_wordCount words',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: AppTheme.textSecondary(context),
+          // Quick Clean Spacing chip
+          InkWell(
+            onTap: _cleanTextSpacing,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.auto_fix_high_rounded, size: 14, color: Color(0xFF3B82F6)),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Clean Breaks',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF3B82F6),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           // Copy button
           InkWell(
             onTap: _copyToClipboard,
             borderRadius: BorderRadius.circular(8),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
               child: Row(
                 children: [
                   Icon(Icons.copy_rounded, size: 14, color: AppTheme.primary(context)),
@@ -1137,12 +1466,12 @@ class _TextExtractionScreenState extends State<TextExtractionScreen> {
             ),
           ),
           const Spacer(),
-          // Dismiss keyboard button
+          // Dismiss keyboard Done button
           FilledButton.tonalIcon(
             icon: const Icon(Icons.keyboard_hide_rounded, size: 16),
             label: const Text('Done'),
             style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               minimumSize: const Size(0, 32),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
@@ -1153,10 +1482,10 @@ class _TextExtractionScreenState extends State<TextExtractionScreen> {
     );
   }
 
-  // Full prominent bottom actions bar shown when keyboard is closed
+  // ─── Prominent Bottom Action Bar (Copy / Share / PDF / Notes) ───
   Widget _buildBottomActionBar() {
     return Container(
-      padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(context).padding.bottom + 12),
+      padding: EdgeInsets.fromLTRB(16, 10, 16, MediaQuery.of(context).padding.bottom + 10),
       decoration: BoxDecoration(
         color: AppTheme.surface(context),
         border: Border(
